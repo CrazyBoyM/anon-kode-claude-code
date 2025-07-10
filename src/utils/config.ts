@@ -97,6 +97,7 @@ export type ProviderType =
   | 'ollama'
   | 'azure'
   | 'custom'
+  | 'custom-openai'
 
 export type AccountInfo = {
   accountUuid: string

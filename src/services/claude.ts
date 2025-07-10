@@ -171,6 +171,50 @@ async function withRetry<T>(
   throw lastError
 }
 
+/**
+ * Fetch available models from Anthropic API
+ */
+export async function fetchAnthropicModels(apiKey: string): Promise<any[]> {
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/models', {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'User-Agent': USER_AGENT,
+      },
+    })
+
+    if (!response.ok) {
+      // Provide user-friendly error messages based on status code
+      if (response.status === 401) {
+        throw new Error('Invalid API key. Please check your Anthropic API key and try again.')
+      } else if (response.status === 403) {
+        throw new Error('API key does not have permission to access models. Please check your API key permissions.')
+      } else if (response.status === 429) {
+        throw new Error('Too many requests. Please wait a moment and try again.')
+      } else if (response.status >= 500) {
+        throw new Error('Anthropic service is temporarily unavailable. Please try again later.')
+      } else {
+        throw new Error(`Unable to connect to Anthropic API (${response.status}). Please check your internet connection and API key.`)
+      }
+    }
+
+    const data = await response.json()
+    return data.data || []
+  } catch (error) {
+    // If it's already our custom error, pass it through
+    if (error instanceof Error && error.message.includes('API key') || 
+        error instanceof Error && error.message.includes('Anthropic')) {
+      throw error
+    }
+    
+    // For network errors or other issues
+    console.error('Failed to fetch Anthropic models:', error)
+    throw new Error('Unable to connect to Anthropic API. Please check your internet connection and try again.')
+  }
+}
+
 export async function verifyApiKey(apiKey: string): Promise<boolean> {
   const anthropic = new Anthropic({
     apiKey,

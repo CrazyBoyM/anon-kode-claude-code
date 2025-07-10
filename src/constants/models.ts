@@ -787,11 +787,14 @@ export const providers = {
     name: 'OpenRouter',
     baseURL: 'https://openrouter.ai/api/v1',
   },
-  //   "anthropic": {
-  //     "name": "Anthropic",
-  //     "baseURL": "https://api.anthropic.com/v1",
-  //     "status": "wip"
-  //   },
+  anthropic: {
+    name: 'Anthropic',
+    baseURL: 'https://api.anthropic.com/v1',
+  },
+  'custom-openai': {
+    name: 'Custom OpenAI-Compatible API',
+    baseURL: '', // Will be configured by user
+  },
   gemini: {
     name: 'Gemini',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
