@@ -6,7 +6,7 @@ import { TOOL_NAME_FOR_PROMPT as GREP_TOOL_NAME } from '../GrepTool/prompt'
 import { LSTool } from '../lsTool/lsTool'
 
 export const MAX_OUTPUT_LENGTH = 30000
-export const MAX_RENDERED_LINES = 50
+export const MAX_RENDERED_LINES = 5
 export const BANNED_COMMANDS = [
   'alias',
   'curl',

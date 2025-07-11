@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Wars - Touchpad Optimized</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        .ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff00;
+            font-size: 16px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #00ff00;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00ff00;
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #00ff00;
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 36px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            background: rgba(0, 0, 0, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #ff4444;
+        }
+        .auto-aim-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #ffaa00;
+            font-size: 18px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <div class="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div>Health: <span id="health">100</span></div>
+        <div>Wave: <span id="wave">1</span></div>
+        <div>Enemies: <span id="enemies">0</span></div>
+        <div>Auto-Aim: <span id="autoAim">ON</span></div>
+    </div>
+    <div class="auto-aim-indicator">
+        🎯 Auto-Targeting Active
+    </div>
+    <div class="controls">
+        WASD/Arrow Keys - Move Ship<br>
+        SPACE - Auto-Shoot<br>
+        Click - Manual Shoot<br>
+        T - Toggle Auto-Aim<br>
+        R - Restart
+    </div>
+    <div class="game-over" id="gameOver">
+        <div>Game Over!</div>
+        <div style="font-size: 24px; margin-top: 15px;">Score: <span id="finalScore">0</span></div>
+        <div style="font-size: 18px; margin-top: 15px;">Press R to restart</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Game variables
+        let scene, camera, renderer;
+        let playerShip;
+        let enemies = [];
+        let bullets = [];
+        let explosions = [];
+        let stars = [];
+        
+        let score = 0;
+        let health = 100;
+        let wave = 1;
+        let gameRunning = true;
+        
+        // Touchpad-friendly controls
+        let moveSpeed = 0.4;
+        let keys = { 
+            w: false, a: false, s: false, d: false, 
+            space: false,
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false
+        };
+        
+        // Auto-aim system
+        let autoAim = true;
+        let autoShoot = false;
+        let shootTimer = 0;
+        let shootInterval = 300; // Auto-shoot every 300ms
+        
+        // Audio
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000022);
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            // Create player
+            createPlayer();
+            createStars();
+            
+            // Position camera for better view
+            camera.position.set(0, 12, 15);
+            camera.lookAt(0, 0, 0);
+            
+            spawnEnemies();
+            animate();
+        }
+
+        function createPlayer() {
+            const geometry = new THREE.ConeGeometry(0.5, 2, 8);
+            const material = new THREE.MeshLambertMaterial({ 
+                color: 0x00ff00,
+                emissive: 0x002200
+            });
+            playerShip = new THREE.Mesh(geometry, material);
+            playerShip.position.set(0, 0, 5);
+            playerShip.rotation.x = Math.PI / 2;
+            scene.add(playerShip);
+        }
+
+        function createStars() {
+            for (let i = 0; i < 300; i++) {
+                const geometry = new THREE.SphereGeometry(0.05, 4, 4);
+                const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const star = new THREE.Mesh(geometry, material);
+                star.position.set(
+                    (Math.random() - 0.5) * 200,
+                    (Math.random() - 0.5) * 200,
+                    (Math.random() - 0.5) * 200
+                );
+                stars.push(star);
+                scene.add(star);
+            }
+        }
+
+        function spawnEnemies() {
+            const numEnemies = 4 + Math.floor(wave / 2);
+            
+            for (let i = 0; i < numEnemies; i++) {
+                const geometry = new THREE.OctahedronGeometry(0.6);
+                const material = new THREE.MeshLambertMaterial({ 
+                    color: 0xff4444,
+                    emissive: 0x440000
+                });
+                const enemy = new THREE.Mesh(geometry, material);
+                
+                // Spawn in a circle around the play area
+                const angle = (i / numEnemies) * Math.PI * 2;
+                const distance = 15 + Math.random() * 8;
+                enemy.position.set(
+                    Math.cos(angle) * distance,
+                    (Math.random() - 0.5) * 4,
+                    Math.sin(angle) * distance
+                );
+                
+                enemy.health = 1;
+                enemy.speed = 0.03 + Math.random() * 0.02;
+                enemy.rotationSpeed = (Math.random() - 0.5) * 0.1;
+                enemies.push(enemy);
+                scene.add(enemy);
+            }
+            
+            updateUI();
+        }
+
+        function findNearestEnemy() {
+            if (enemies.length === 0) return null;
+            
+            let nearest = null;
+            let minDistance = Infinity;
+            
+            enemies.forEach(enemy => {
+                const distance = enemy.position.distanceTo(playerShip.position);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = enemy;
+                }
+            });
+            
+            return nearest;
+        }
+
+        function shoot(targetPosition = null) {
+            if (!gameRunning) return;
+            
+            const geometry = new THREE.SphereGeometry(0.08);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x00ff00,
+                emissive: 0x004400
+            });
+            const bullet = new THREE.Mesh(geometry, material);
+            
+            bullet.position.copy(playerShip.position);
+            bullet.position.y += 0.5;
+            
+            // Calculate direction
+            let direction = new THREE.Vector3();
+            if (autoAim && targetPosition) {
+                // Auto-aim to target
+                direction.subVectors(targetPosition, bullet.position);
+            } else {
+                // Shoot forward
+                direction.set(0, 0, -1);
+            }
+            direction.normalize();
+            
+            bullet.direction = direction;
+            bullet.speed = 0.8;
+            bullets.push(bullet);
+            scene.add(bullet);
+            
+            // Sound effect
+            playSound(800, 0.08);
+        }
+
+        function updatePlayer() {
+            if (!gameRunning) return;
+            
+            // Handle movement (WASD or Arrow Keys)
+            let moveX = 0, moveZ = 0;
+            
+            if (keys.w || keys.ArrowUp) moveZ -= moveSpeed;
+            if (keys.s || keys.ArrowDown) moveZ += moveSpeed;
+            if (keys.a || keys.ArrowLeft) moveX -= moveSpeed;
+            if (keys.d || keys.ArrowRight) moveX += moveSpeed;
+            
+            // Apply movement
+            playerShip.position.x += moveX;
+            playerShip.position.z += moveZ;
+            
+            // Keep player in bounds
+            playerShip.position.x = Math.max(-12, Math.min(12, playerShip.position.x));
+            playerShip.position.z = Math.max(-8, Math.min(12, playerShip.position.z));
+            
+            // Rotate ship based on movement
+            if (moveX !== 0 || moveZ !== 0) {
+                playerShip.rotation.z = -moveX * 0.3;
+                playerShip.rotation.y = Math.atan2(moveX, -moveZ);
+            } else {
+                playerShip.rotation.z *= 0.9;
+            }
+            
+            // Auto-shoot logic
+            if (keys.space || autoShoot) {
+                shootTimer += 16; // Assuming ~60fps
+                if (shootTimer >= shootInterval) {
+                    const target = autoAim ? findNearestEnemy() : null;
+                    shoot(target ? target.position : null);
+                    shootTimer = 0;
+                }
+            }
+        }
+
+        function updateEnemies() {
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                
+                // Move towards player with some randomness
+                const direction = new THREE.Vector3();
+                direction.subVectors(playerShip.position, enemy.position);
+                direction.normalize();
+                
+                // Add some wobble
+                direction.x += (Math.random() - 0.5) * 0.1;
+                direction.z += (Math.random() - 0.5) * 0.1;
+                
+                direction.multiplyScalar(enemy.speed);
+                enemy.position.add(direction);
+                
+                // Rotate enemy
+                enemy.rotation.x += enemy.rotationSpeed;
+                enemy.rotation.y += enemy.rotationSpeed * 0.7;
+                
+                // Check collision with player
+                if (enemy.position.distanceTo(playerShip.position) < 1.2) {
+                    health -= 25;
+                    createExplosion(enemy.position, 0xff4444);
+                    scene.remove(enemy);
+                    enemies.splice(i, 1);
+                    playSound(200, 0.3);
+                    
+                    if (health <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+
+        function updateBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                
+                // Move bullet
+                bullet.position.add(
+                    bullet.direction.clone().multiplyScalar(bullet.speed)
+                );
+                
+                // Remove if too far
+                if (bullet.position.length() > 50) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+                
+                // Check collision with enemies
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    if (bullet.position.distanceTo(enemy.position) < 1) {
+                        // Hit!
+                        score += 10;
+                        createExplosion(enemy.position, 0x00ff00);
+                        scene.remove(bullet);
+                        scene.remove(enemy);
+                        bullets.splice(i, 1);
+                        enemies.splice(j, 1);
+                        playSound(600, 0.15);
+                        break;
+                    }
+                }
+            }
+        }
+
+        function updateExplosions() {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const explosion = explosions[i];
+                explosion.life -= 0.03;
+                explosion.material.opacity = explosion.life;
+                explosion.scale.multiplyScalar(1.08);
+                
+                if (explosion.life <= 0) {
+                    scene.remove(explosion);
+                    explosions.splice(i, 1);
+                }
+            }
+        }
+
+        function createExplosion(position, color = 0xff4400) {
+            for (let i = 0; i < 8; i++) {
+                const geometry = new THREE.SphereGeometry(0.15);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: color,
+                    transparent: true
+                });
+                const particle = new THREE.Mesh(geometry, material);
+                particle.position.copy(position);
+                particle.position.add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                ));
+                particle.life = 1.0;
+                explosions.push(particle);
+                scene.add(particle);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('health').textContent = Math.max(0, health);
+            document.getElementById('wave').textContent = wave;
+            document.getElementById('enemies').textContent = enemies.length;
+            document.getElementById('autoAim').textContent = autoAim ? 'ON' : 'OFF';
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+            playSound(150, 1.0);
+        }
+
+        function resetGame() {
+            gameRunning = true;
+            score = 0;
+            health = 100;
+            wave = 1;
+            shootTimer = 0;
+            
+            // Clear all objects
+            enemies.forEach(enemy => scene.remove(enemy));
+            enemies = [];
+            
+            bullets.forEach(bullet => scene.remove(bullet));
+            bullets = [];
+            
+            explosions.forEach(explosion => scene.remove(explosion));
+            explosions = [];
+            
+            playerShip.position.set(0, 0, 5);
+            playerShip.rotation.set(Math.PI / 2, 0, 0);
+            document.getElementById('gameOver').style.display = 'none';
+            
+            spawnEnemies();
+            updateUI();
+        }
+
+        function checkWaveComplete() {
+            if (enemies.length === 0 && gameRunning) {
+                wave++;
+                setTimeout(() => {
+                    spawnEnemies();
+                    // Increase difficulty
+                    if (wave % 3 === 0) {
+                        shootInterval = Math.max(150, shootInterval - 20);
+                    }
+                }, 1500);
+            }
+        }
+
+        function playSound(frequency, duration) {
+            if (!audioContext) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.type = 'square';
+            
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (gameRunning) {
+                updatePlayer();
+                updateEnemies();
+                updateBullets();
+                updateExplosions();
+                checkWaveComplete();
+                updateUI();
+            }
+            
+            // Animate stars
+            stars.forEach(star => {
+                star.rotation.x += 0.001;
+                star.rotation.y += 0.001;
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        // Event listeners - optimized for touchpad
+        document.addEventListener('keydown', (event) => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            const key = event.key;
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = true;
+            }
+            
+            if (key === 'r' || key === 'R') {
+                resetGame();
+            }
+            
+            if (key === 't' || key === 'T') {
+                autoAim = !autoAim;
+                updateUI();
+            }
+            
+            if (key === ' ') {
+                event.preventDefault();
+                // Space starts auto-shoot mode
+                autoShoot = true;
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            const key = event.key;
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = false;
+            }
+            
+            if (key === ' ') {
+                autoShoot = false;
+            }
+        });
+
+        // Mouse/touchpad click for manual shooting
+        document.addEventListener('mousedown', (event) => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            const target = autoAim ? findNearestEnemy() : null;
+            shoot(target ? target.position : null);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start the game
+        init();
+    </script>
+</body>
+</html>

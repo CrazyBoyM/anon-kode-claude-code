@@ -311,7 +311,7 @@ export function ModelSelector({
   async function fetchAnthropicModelsFromAPI() {
     try {
       const models = await fetchAnthropicModels(apiKey)
-      
+
       const anthropicModels = models.map((model: any) => ({
         model: model.id,
         provider: 'anthropic',
@@ -324,20 +324,23 @@ export function ModelSelector({
       return anthropicModels
     } catch (error) {
       let errorMessage = 'Failed to fetch Anthropic models'
-      
+
       if (error instanceof Error) {
         errorMessage = error.message
       }
-      
+
       // Add helpful suggestions based on error type
       if (errorMessage.includes('API key')) {
-        errorMessage += '\n\n💡 Tip: Get your API key from https://console.anthropic.com/settings/keys'
+        errorMessage +=
+          '\n\n💡 Tip: Get your API key from https://console.anthropic.com/settings/keys'
       } else if (errorMessage.includes('permission')) {
-        errorMessage += '\n\n💡 Tip: Make sure your API key has access to the Models API'
+        errorMessage +=
+          '\n\n💡 Tip: Make sure your API key has access to the Models API'
       } else if (errorMessage.includes('connection')) {
-        errorMessage += '\n\n💡 Tip: Check your internet connection and try again'
+        errorMessage +=
+          '\n\n💡 Tip: Check your internet connection and try again'
       }
-      
+
       setModelLoadError(errorMessage)
       throw error
     }
@@ -346,7 +349,7 @@ export function ModelSelector({
   async function fetchCustomOpenAIModels() {
     try {
       const models = await fetchCustomModels(customBaseUrl, apiKey)
-      
+
       const customModels = models.map((model: any) => ({
         model: model.id,
         provider: 'custom-openai',
@@ -359,31 +362,36 @@ export function ModelSelector({
       return customModels
     } catch (error) {
       let errorMessage = 'Failed to fetch custom API models'
-      
+
       if (error instanceof Error) {
         errorMessage = error.message
       }
-      
+
       // Add helpful suggestions based on error type
       if (errorMessage.includes('API key')) {
-        errorMessage += '\n\n💡 Tip: Check that your API key is valid for this endpoint'
+        errorMessage +=
+          '\n\n💡 Tip: Check that your API key is valid for this endpoint'
       } else if (errorMessage.includes('endpoint not found')) {
-        errorMessage += '\n\n💡 Tip: Make sure the base URL ends with /v1 and supports OpenAI-compatible API'
+        errorMessage +=
+          '\n\n💡 Tip: Make sure the base URL ends with /v1 and supports OpenAI-compatible API'
       } else if (errorMessage.includes('connect')) {
-        errorMessage += '\n\n💡 Tip: Verify the base URL is correct and accessible'
+        errorMessage +=
+          '\n\n💡 Tip: Verify the base URL is correct and accessible'
       } else if (errorMessage.includes('response format')) {
-        errorMessage += '\n\n💡 Tip: This API may not be fully OpenAI-compatible'
+        errorMessage +=
+          '\n\n💡 Tip: This API may not be fully OpenAI-compatible'
       }
-      
+
       // For custom API, automatically fallback to manual model input
-      errorMessage += '\n\n⚡ Automatically switching to manual model configuration...'
+      errorMessage +=
+        '\n\n⚡ Automatically switching to manual model configuration...'
       setModelLoadError(errorMessage)
-      
+
       // Wait a moment to show the error message, then navigate to manual input
       setTimeout(() => {
         navigateTo('modelInput')
       }, 2000)
-      
+
       throw error
     }
   }
@@ -435,39 +443,41 @@ export function ModelSelector({
       }
 
       const responseData = await response.json()
-      
+
       // Properly handle Ollama API response format
       // Ollama API can return models in different formats based on version
-      let models = [];
-      
+      let models = []
+
       // Check if data field exists (newer Ollama versions)
       if (responseData.data && Array.isArray(responseData.data)) {
-        models = responseData.data;
-      } 
+        models = responseData.data
+      }
       // Check if models array is directly at the root (older Ollama versions)
       else if (Array.isArray(responseData.models)) {
-        models = responseData.models;
-      } 
+        models = responseData.models
+      }
       // If response is already an array
       else if (Array.isArray(responseData)) {
-        models = responseData;
-      } 
-      else {
-        throw new Error('Invalid response from Ollama API: missing models array');
+        models = responseData
+      } else {
+        throw new Error(
+          'Invalid response from Ollama API: missing models array',
+        )
       }
 
       // Transform Ollama models to our format
       const ollamaModels = models.map((model: any) => ({
-        model: model.name ?? model.id ?? (typeof model === 'string' ? model : ''),
+        model:
+          model.name ?? model.id ?? (typeof model === 'string' ? model : ''),
         provider: 'ollama',
         max_tokens: 4096, // Default value
         supports_vision: false,
         supports_function_calling: true,
         supports_reasoning_effort: false,
       }))
-      
+
       // Filter out models with empty names
-      const validModels = ollamaModels.filter(model => model.model);
+      const validModels = ollamaModels.filter(model => model.model)
 
       setAvailableModels(validModels)
 
@@ -610,20 +620,25 @@ export function ModelSelector({
     // Fetch models with the provided API key
     fetchModels().catch(error => {
       let errorMessage = `Error loading models: ${error.message}`
-      
+
       // Add a helpful fallback suggestion for Anthropic and custom APIs
-      if (selectedProvider === 'anthropic' || selectedProvider === 'custom-openai') {
-        errorMessage += '\n\n⚡ Alternative: You can skip model discovery and manually enter a model name instead.'
-        
+      if (
+        selectedProvider === 'anthropic' ||
+        selectedProvider === 'custom-openai'
+      ) {
+        errorMessage +=
+          '\n\n⚡ Alternative: You can skip model discovery and manually enter a model name instead.'
+
         // For custom APIs, automatically fallback to manual input after a delay
         if (selectedProvider === 'custom-openai') {
-          errorMessage += '\n\n⏱ Automatically switching to manual configuration in 3 seconds...'
+          errorMessage +=
+            '\n\n⏱ Automatically switching to manual configuration in 3 seconds...'
           setTimeout(() => {
             navigateTo('modelInput')
           }, 3000)
         }
       }
-      
+
       setModelLoadError(errorMessage)
     })
   }
@@ -820,11 +835,14 @@ export function ModelSelector({
 
     if (currentScreen === 'apiKey' && key.tab) {
       // For Anthropic and custom-openai, skip to manual model input
-      if (selectedProvider === 'anthropic' || selectedProvider === 'custom-openai') {
+      if (
+        selectedProvider === 'anthropic' ||
+        selectedProvider === 'custom-openai'
+      ) {
         navigateTo('modelInput')
         return
       }
-      
+
       // For other providers, try to fetch models without API key
       fetchModels().catch(error => {
         setModelLoadError(`Error loading models: ${error.message}`)
@@ -1082,10 +1100,11 @@ export function ModelSelector({
               <Text dimColor>
                 Press <Text color={theme.suggestion}>Enter</Text> to continue,{' '}
                 <Text color={theme.suggestion}>Tab</Text> to{' '}
-                {selectedProvider === 'anthropic' || selectedProvider === 'custom-openai' 
-                  ? 'skip to manual model input' 
-                  : 'skip using a key'},
-                or <Text color={theme.suggestion}>Esc</Text> to go back
+                {selectedProvider === 'anthropic' ||
+                selectedProvider === 'custom-openai'
+                  ? 'skip to manual model input'
+                  : 'skip using a key'}
+                , or <Text color={theme.suggestion}>Esc</Text> to go back
               </Text>
             </Box>
           </Box>
@@ -1391,7 +1410,7 @@ export function ModelSelector({
   if (currentScreen === 'baseUrl') {
     const isOllama = selectedProvider === 'ollama'
     const isCustomOpenAI = selectedProvider === 'custom-openai'
-    
+
     return (
       <Box flexDirection="column" gap={1}>
         <Box
@@ -1433,13 +1452,29 @@ export function ModelSelector({
 
             <Box>
               <TextInput
-                placeholder={isOllama ? "http://localhost:11434/v1" : "https://api.example.com/v1"}
+                placeholder={
+                  isOllama
+                    ? 'http://localhost:11434/v1'
+                    : 'https://api.example.com/v1'
+                }
                 value={isOllama ? ollamaBaseUrl : customBaseUrl}
                 onChange={isOllama ? setOllamaBaseUrl : setCustomBaseUrl}
-                onSubmit={isOllama ? handleOllamaBaseUrlSubmit : handleCustomBaseUrlSubmit}
+                onSubmit={
+                  isOllama
+                    ? handleOllamaBaseUrlSubmit
+                    : handleCustomBaseUrlSubmit
+                }
                 columns={100}
-                cursorOffset={isOllama ? ollamaBaseUrlCursorOffset : customBaseUrlCursorOffset}
-                onChangeCursorOffset={isOllama ? setOllamaBaseUrlCursorOffset : setCustomBaseUrlCursorOffset}
+                cursorOffset={
+                  isOllama
+                    ? ollamaBaseUrlCursorOffset
+                    : customBaseUrlCursorOffset
+                }
+                onChangeCursorOffset={
+                  isOllama
+                    ? setOllamaBaseUrlCursorOffset
+                    : setCustomBaseUrlCursorOffset
+                }
                 showCursor={!isLoadingModels}
                 focus={!isLoadingModels}
               />
@@ -1461,7 +1496,9 @@ export function ModelSelector({
             {isLoadingModels && (
               <Box marginTop={1}>
                 <Text color={theme.success}>
-                  {isOllama ? 'Connecting to Ollama server...' : 'Connecting to custom API...'}
+                  {isOllama
+                    ? 'Connecting to Ollama server...'
+                    : 'Connecting to custom API...'}
                 </Text>
               </Box>
             )}
@@ -1505,7 +1542,8 @@ export function ModelSelector({
     } else if (selectedProvider === 'anthropic') {
       screenTitle = 'Anthropic Model Setup'
       description = `Enter the Claude model name for ${modelTypeText}:`
-      examples = 'For example: "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", etc.'
+      examples =
+        'For example: "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", etc.'
       placeholder = 'claude-3-5-sonnet-latest'
     } else if (selectedProvider === 'custom-openai') {
       screenTitle = 'Custom API Model Setup'
@@ -1534,11 +1572,11 @@ export function ModelSelector({
             <Text bold>{description}</Text>
             <Box flexDirection="column" width={70}>
               <Text color={theme.secondaryText}>
-                {selectedProvider === 'azure' 
+                {selectedProvider === 'azure'
                   ? 'This is the deployment name you configured in your Azure OpenAI resource.'
                   : selectedProvider === 'anthropic'
-                  ? 'This should be a valid Claude model identifier from Anthropic.'
-                  : 'This should match the model name supported by your API endpoint.'}
+                    ? 'This should be a valid Claude model identifier from Anthropic.'
+                    : 'This should match the model name supported by your API endpoint.'}
                 <Newline />
                 {examples}
               </Text>

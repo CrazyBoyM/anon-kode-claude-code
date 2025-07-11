@@ -9,12 +9,14 @@ function renderTruncatedContent(content: string, totalLines: number): string {
   if (allLines.length <= MAX_RENDERED_LINES) {
     return allLines.join('\n')
   }
-  const firstHalf = Math.floor(MAX_RENDERED_LINES / 2)
-  const secondHalf = MAX_RENDERED_LINES - firstHalf
+
+  // Show last 5 lines of output by default (matching reference implementation)
+  const lastLines = allLines.slice(-MAX_RENDERED_LINES)
   return [
-    ...allLines.slice(0, firstHalf),
-    chalk.grey(`... (+${totalLines - MAX_RENDERED_LINES} lines)`),
-    ...allLines.slice(-secondHalf),
+    chalk.grey(
+      `Showing last ${MAX_RENDERED_LINES} lines of ${totalLines} total lines`,
+    ),
+    ...lastLines,
   ].join('\n')
 }
 

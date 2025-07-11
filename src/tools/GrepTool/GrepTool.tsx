@@ -53,6 +53,9 @@ export const GrepTool = {
   isReadOnly() {
     return true
   },
+  isConcurrencySafe() {
+    return true // GrepTool is read-only, safe for concurrent execution
+  },
   async isEnabled() {
     return true
   },

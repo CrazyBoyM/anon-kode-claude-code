@@ -42,6 +42,7 @@ import { ContentBlock } from '@anthropic-ai/sdk/resources/messages/messages'
 import { nanoid } from 'nanoid'
 import { getCompletion } from './openai'
 import { getReasoningEffort } from '../utils/thinking'
+import { generateSystemReminders } from './systemReminder'
 
 interface StreamResponse extends APIMessage {
   ttftMs?: number
@@ -188,15 +189,25 @@ export async function fetchAnthropicModels(apiKey: string): Promise<any[]> {
     if (!response.ok) {
       // Provide user-friendly error messages based on status code
       if (response.status === 401) {
-        throw new Error('Invalid API key. Please check your Anthropic API key and try again.')
+        throw new Error(
+          'Invalid API key. Please check your Anthropic API key and try again.',
+        )
       } else if (response.status === 403) {
-        throw new Error('API key does not have permission to access models. Please check your API key permissions.')
+        throw new Error(
+          'API key does not have permission to access models. Please check your API key permissions.',
+        )
       } else if (response.status === 429) {
-        throw new Error('Too many requests. Please wait a moment and try again.')
+        throw new Error(
+          'Too many requests. Please wait a moment and try again.',
+        )
       } else if (response.status >= 500) {
-        throw new Error('Anthropic service is temporarily unavailable. Please try again later.')
+        throw new Error(
+          'Anthropic service is temporarily unavailable. Please try again later.',
+        )
       } else {
-        throw new Error(`Unable to connect to Anthropic API (${response.status}). Please check your internet connection and API key.`)
+        throw new Error(
+          `Unable to connect to Anthropic API (${response.status}). Please check your internet connection and API key.`,
+        )
       }
     }
 
@@ -204,14 +215,18 @@ export async function fetchAnthropicModels(apiKey: string): Promise<any[]> {
     return data.data || []
   } catch (error) {
     // If it's already our custom error, pass it through
-    if (error instanceof Error && error.message.includes('API key') || 
-        error instanceof Error && error.message.includes('Anthropic')) {
+    if (
+      (error instanceof Error && error.message.includes('API key')) ||
+      (error instanceof Error && error.message.includes('Anthropic'))
+    ) {
       throw error
     }
-    
+
     // For network errors or other issues
     console.error('Failed to fetch Anthropic models:', error)
-    throw new Error('Unable to connect to Anthropic API. Please check your internet connection and try again.')
+    throw new Error(
+      'Unable to connect to Anthropic API. Please check your internet connection and try again.',
+    )
   }
 }
 
@@ -713,18 +728,35 @@ export async function querySonnet(
 export function formatSystemPromptWithContext(
   systemPrompt: string[],
   context: { [k: string]: string },
+  agentId?: string,
 ): string[] {
-  if (Object.entries(context).length === 0) {
-    return systemPrompt
+  // Build the enhanced system prompt
+  const enhancedPrompt = [...systemPrompt]
+
+  // Only inject reminders when context is present (matching original behavior)
+  const hasContext = Object.entries(context).length > 0
+
+  if (hasContext) {
+    // Generate system reminders conditionally with agent context
+    const reminders = generateSystemReminders(true, agentId)
+
+    // Add system reminders as separate system messages
+    reminders.forEach(reminder => {
+      enhancedPrompt.push(reminder.content)
+    })
+
+    // Add context with exact original format
+    enhancedPrompt.push(
+      `\nAs you answer the user's questions, you can use the following context:\n`,
+    )
+    enhancedPrompt.push(
+      ...Object.entries(context).map(
+        ([key, value]) => `<context name="${key}">${value}</context>`,
+      ),
+    )
   }
 
-  return [
-    ...systemPrompt,
-    `\nAs you answer the user's questions, you can use the following context:\n`,
-    ...Object.entries(context).map(
-      ([key, value]) => `<context name="${key}">${value}</context>`,
-    ),
-  ]
+  return enhancedPrompt
 }
 
 async function querySonnetWithPromptCaching(

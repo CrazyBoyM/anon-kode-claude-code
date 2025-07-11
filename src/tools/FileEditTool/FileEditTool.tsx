@@ -19,6 +19,7 @@ import {
 import { logError } from '../../utils/log'
 import { getCwd } from '../../utils/state'
 import { getTheme } from '../../utils/theme'
+import { emitReminderEvent } from '../../services/systemReminder'
 import { NotebookEditTool } from '../NotebookEditTool/NotebookEditTool'
 import { DESCRIPTION } from './prompt'
 import { applyEdit } from './utils'
@@ -53,11 +54,14 @@ export const FileEditTool = {
   async isEnabled() {
     return true
   },
-  needsPermissions({ file_path }) {
-    return !hasWritePermission(file_path)
-  },
   isReadOnly() {
     return false
+  },
+  isConcurrencySafe() {
+    return false // FileEdit modifies files, not safe for concurrent execution
+  },
+  needsPermissions({ file_path }) {
+    return !hasWritePermission(file_path)
   },
   renderToolUseMessage(input, { verbose }) {
     return `file_path: ${verbose ? input.file_path : relative(getCwd(), input.file_path)}`
@@ -242,6 +246,15 @@ export const FileEditTool = {
     if (fullFilePath.endsWith(`${sep}${PROJECT_FILE}`)) {
       logEvent('tengu_write_claudemd', {})
     }
+
+    // Emit file edited event for system reminders
+    emitReminderEvent('file:edited', {
+      filePath: fullFilePath,
+      oldString: old_string,
+      newString: new_string,
+      timestamp: Date.now(),
+      operation: old_string === '' ? 'create' : new_string === '' ? 'delete' : 'update'
+    })
 
     const data = {
       filePath: file_path,

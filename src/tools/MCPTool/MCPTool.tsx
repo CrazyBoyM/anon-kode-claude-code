@@ -17,6 +17,9 @@ export const MCPTool = {
   isReadOnly() {
     return false
   },
+  isConcurrencySafe() {
+    return false // MCPTool can modify state through MCP calls, not safe for concurrent execution
+  },
   // Overridden in mcpClient.ts
   name: 'mcp',
   // Overridden in mcpClient.ts

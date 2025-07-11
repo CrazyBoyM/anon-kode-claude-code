@@ -24,6 +24,7 @@ export const StickerRequestTool: Tool = {
     return enabled
   },
   isReadOnly: () => false,
+  isConcurrencySafe: () => false, // StickerRequestTool modifies state, not safe for concurrent execution
   needsPermissions: () => false,
   prompt: async () => PROMPT,
 

@@ -22,11 +22,22 @@ export async function getPrompt(
 ): Promise<string> {
   const tools = await getAgentTools(dangerouslySkipPermissions)
   const toolNames = tools.map(_ => _.name).join(', ')
-  return `Launch a new agent that has access to the following tools: ${toolNames}. When you are searching for a keyword or file and are not confident that you will find the right match on the first try, use the Agent tool to perform the search for you. For example:
+  return `Launch a new agent that has access to the following tools: ${toolNames}. This tool is designed for intelligent orchestration of complex, multi-round searches and analysis tasks that require sophisticated tool coordination.
 
-- If you are searching for a keyword like "config" or "logger", the Agent tool is appropriate
+When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use the Agent tool to perform the search for you.
+
+When to use the Agent tool:
+- If you are searching for a keyword like "config" or "logger", or for questions like "which file does X?", the Agent tool is strongly recommended
+- Open-ended code search and analysis requiring multiple tool combinations
+- Complex queries needing context understanding and intelligent search
+- Tasks requiring reduction of main conversation context usage
+
+When NOT to use the Agent tool:
 - If you want to read a specific file path, use the ${FileReadTool.name} or ${GlobTool.name} tool instead of the Agent tool, to find the match more quickly
 - If you are searching for a specific class definition like "class Foo", use the ${GlobTool.name} tool instead, to find the match more quickly
+- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Agent tool, to find the match more quickly
+- Writing code and running bash commands (use other tools for that)
+- Other tasks that are not related to searching for a keyword or file
 
 Usage notes:
 1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses

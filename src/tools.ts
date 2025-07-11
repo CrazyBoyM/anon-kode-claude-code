@@ -10,9 +10,12 @@ import { GrepTool } from './tools/GrepTool/GrepTool'
 import { LSTool } from './tools/lsTool/lsTool'
 import { MemoryReadTool } from './tools/MemoryReadTool/MemoryReadTool'
 import { MemoryWriteTool } from './tools/MemoryWriteTool/MemoryWriteTool'
+import { MultiEditTool } from './tools/MultiEditTool/MultiEditTool'
 import { NotebookEditTool } from './tools/NotebookEditTool/NotebookEditTool'
 import { NotebookReadTool } from './tools/NotebookReadTool/NotebookReadTool'
 import { ThinkTool } from './tools/ThinkTool/ThinkTool'
+import { TodoReadTool } from './tools/TodoReadTool/TodoReadTool'
+import { TodoWriteTool } from './tools/TodoWriteTool/TodoWriteTool'
 import { getMCPTools } from './services/mcpClient'
 import { memoize } from 'lodash-es'
 
@@ -28,10 +31,13 @@ export const getAllTools = (): Tool[] => {
     LSTool,
     FileReadTool,
     FileEditTool,
+    MultiEditTool,
     FileWriteTool,
     NotebookReadTool,
     NotebookEditTool,
     ThinkTool,
+    TodoReadTool,
+    TodoWriteTool,
     ...ANT_ONLY_TOOLS,
   ]
 }

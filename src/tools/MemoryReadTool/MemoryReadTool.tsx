@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { FallbackToolUseRejectedMessage } from '../../components/FallbackToolUseRejectedMessage'
 import { Tool } from '../../Tool'
 import { MEMORY_DIR } from '../../utils/env'
+import { resolveAgentId } from '../../utils/agentStorage'
 import { DESCRIPTION, PROMPT } from './prompt'
 
 const inputSchema = z.strictObject({
@@ -35,6 +36,9 @@ export const MemoryReadTool = {
   isReadOnly() {
     return true
   },
+  isConcurrencySafe() {
+    return true // MemoryRead is read-only, safe for concurrent execution
+  },
   needsPermissions() {
     return false
   },
@@ -59,10 +63,13 @@ export const MemoryReadTool = {
       </Box>
     )
   },
-  async validateInput({ file_path }) {
+  async validateInput({ file_path }, context) {
+    const agentId = resolveAgentId(context?.agentId)
+    const agentMemoryDir = join(MEMORY_DIR, 'agents', agentId)
+
     if (file_path) {
-      const fullPath = join(MEMORY_DIR, file_path)
-      if (!fullPath.startsWith(MEMORY_DIR)) {
+      const fullPath = join(agentMemoryDir, file_path)
+      if (!fullPath.startsWith(agentMemoryDir)) {
         return { result: false, message: 'Invalid memory file path' }
       }
       if (!existsSync(fullPath)) {
@@ -71,12 +78,14 @@ export const MemoryReadTool = {
     }
     return { result: true }
   },
-  async *call({ file_path }) {
-    mkdirSync(MEMORY_DIR, { recursive: true })
+  async *call({ file_path }, context) {
+    const agentId = resolveAgentId(context?.agentId)
+    const agentMemoryDir = join(MEMORY_DIR, 'agents', agentId)
+    mkdirSync(agentMemoryDir, { recursive: true })
 
     // If a specific file is requested, return its contents
     if (file_path) {
-      const fullPath = join(MEMORY_DIR, file_path)
+      const fullPath = join(agentMemoryDir, file_path)
       if (!existsSync(fullPath)) {
         throw new Error('Memory file does not exist')
       }
@@ -91,23 +100,23 @@ export const MemoryReadTool = {
       return
     }
 
-    // Otherwise return the index and file list
-    const files = readdirSync(MEMORY_DIR, { recursive: true })
-      .map(f => join(MEMORY_DIR, f.toString()))
+    // Otherwise return the index and file list for this agent
+    const files = readdirSync(agentMemoryDir, { recursive: true })
+      .map(f => join(agentMemoryDir, f.toString()))
       .filter(f => !lstatSync(f).isDirectory())
       .map(f => `- ${f}`)
       .join('\n')
 
-    const indexPath = join(MEMORY_DIR, 'index.md')
+    const indexPath = join(agentMemoryDir, 'index.md')
     const index = existsSync(indexPath) ? readFileSync(indexPath, 'utf-8') : ''
 
     const quotes = "'''"
-    const content = `Here are the contents of the root memory file, \`${indexPath}\`:
+    const content = `Here are the contents of the agent memory file, \`${indexPath}\`:
 ${quotes}
 ${index}
 ${quotes}
 
-Files in the memory directory:
+Files in the agent memory directory:
 ${files}`
     yield {
       type: 'result',

@@ -16,7 +16,7 @@ NODE_ENV=development pnpm run dev --verbose --debug
 
 ## Architecture Overview
 
-This is a terminal-based AI coding assistant called "anon-kode" that provides Claude-like functionality through any OpenAI-compatible API.
+This is a terminal-based AI coding assistant called "last-kode" that provides Claude-like functionality through any OpenAI-compatible API.
 
 ### Core Structure
 

@@ -381,7 +381,7 @@ export function REPL({
     }
 
     // If this was a Koding request and we got an assistant message back,
-    // save it to KODING.md
+    // save it to Code_Context.md (and CLAUDE.md if exists)
     if (
       isKodingRequest &&
       lastAssistantMessage &&
@@ -396,12 +396,12 @@ export function REPL({
                 .map(block => (block.type === 'text' ? block.text : ''))
                 .join('\n')
 
-        // Add the content to KODING.md
+        // Add the content to Code_Context.md (and CLAUDE.md if exists)
         if (content && content.trim().length > 0) {
           handleHashCommand(content)
         }
       } catch (error) {
-        console.error('Error saving response to KODING.md:', error)
+        console.error('Error saving response to project docs:', error)
       }
     }
 

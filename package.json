@@ -1,5 +1,5 @@
 {
-  "name": "anon-kode",
+  "name": "last-kode",
   "version": "0.0.54",
   "bin": {
     "kode": "cli.mjs"
@@ -8,16 +8,16 @@
     "node": ">=18.0.0"
   },
   "type": "module",
-  "author": "Anon Kode <anon@kode.com>",
+  "author": "Last Kode <last@kode.com>",
   "license": "",
-  "description": "Use Anon Kode, Anon's AI assistant, right from your terminal. Anon Kode can understand your codebase, edit files, run terminal commands, and handle entire workflows for you.",
-  "homepage": "https://github.com/ripgrim/anon-kode",
+  "description": "Use Last Kode, Last's AI assistant, right from your terminal. Last Kode can understand your codebase, edit files, run terminal commands, and handle entire workflows for you.",
+  "homepage": "https://github.com/ripgrim/last-kode",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ripgrim/anon-kode.git"
+    "url": "https://github.com/ripgrim/last-kode.git"
   },
   "bugs": {
-    "url": "https://github.com/ripgrim/anon-kode/issues"
+    "url": "https://github.com/ripgrim/last-kode/issues"
   },
   "files": [
     "cli.mjs",
