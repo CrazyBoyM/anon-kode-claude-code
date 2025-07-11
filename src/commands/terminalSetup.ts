@@ -52,24 +52,27 @@ export function isShiftEnterKeyBindingInstalled(): boolean {
 }
 
 export function handleHashCommand(interpreted: string): void {
-  // Appends the AI-interpreted content to KODING.md
+  // Appends the AI-interpreted content to both Code_Context.md and CLAUDE.md (if exists)
   try {
-    const kodingPath = join(process.cwd(), 'KODING.md')
-
-    // Check if file exists, if not create it
-    let existingContent = ''
+    const cwd = process.cwd()
+    const codeContextPath = join(cwd, 'Code_Context.md')
+    const claudePath = join(cwd, 'CLAUDE.md')
+    
+    // Check which files exist and update them
+    const filesToUpdate = []
+    
+    // Always try to update Code_Context.md (create if not exists)
+    filesToUpdate.push({ path: codeContextPath, name: 'Code_Context.md' })
+    
+    // Update CLAUDE.md only if it exists
     try {
-      existingContent = readFileSync(kodingPath, 'utf-8').trim()
-    } catch (error) {
-      // File doesn't exist yet, that's fine
+      readFileSync(claudePath, 'utf-8')
+      filesToUpdate.push({ path: claudePath, name: 'CLAUDE.md' })
+    } catch {
+      // CLAUDE.md doesn't exist, skip it
     }
-
-    // Add a separator if the file already has content
-    const separator = existingContent ? '\n\n' : ''
-
-    // Add a timestamp if the interpreted content doesn't include one
+    
     const now = new Date()
-    // Get timezone abbreviation (EDT, EST, etc.)
     const timezoneMatch = now.toString().match(/\(([A-Z]+)\)/)
     const timezone = timezoneMatch
       ? timezoneMatch[1]
@@ -81,17 +84,48 @@ export function handleHashCommand(interpreted: string): void {
     const timestamp = interpreted.includes(now.getFullYear().toString())
       ? ''
       : `\n\n_Added on ${now.toLocaleString()} ${timezone}_`
+    
+    const updatedFiles = []
+    
+    for (const file of filesToUpdate) {
+      try {
+        // Check if file exists, if not create it
+        let existingContent = ''
+        try {
+          existingContent = readFileSync(file.path, 'utf-8').trim()
+        } catch (error) {
+          // File doesn't exist yet, that's fine
+        }
 
-    // Combine everything and write to file
-    const newContent = `${existingContent}${separator}${interpreted}${timestamp}`
-    writeFileSync(kodingPath, newContent, 'utf-8')
+        // Add a separator if the file already has content
+        const separator = existingContent ? '\n\n' : ''
 
-    console.log(chalk.hex(getTheme().success)(`Added note to KODING.md`))
+        // Combine everything and write to file
+        const newContent = `${existingContent}${separator}${interpreted}${timestamp}`
+        writeFileSync(file.path, newContent, 'utf-8')
+        updatedFiles.push(file.name)
+      } catch (error) {
+        logError(error)
+        console.error(
+          chalk.hex(getTheme().error)(
+            `Failed to update ${file.name}: ${error.message}`,
+          ),
+        )
+      }
+    }
+    
+    if (updatedFiles.length > 0) {
+      console.log(
+        chalk.hex(getTheme().success)(
+          `Added note to ${updatedFiles.join(' and ')}`,
+        ),
+      )
+    }
   } catch (e) {
     logError(e)
     console.error(
       chalk.hex(getTheme().error)(
-        `Failed to add note to KODING.md: ${e.message}`,
+        `Failed to add note: ${e.message}`,
       ),
     )
   }

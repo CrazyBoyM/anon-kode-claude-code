@@ -19,23 +19,37 @@ import { lastX } from './utils/generators'
 import { getGitEmail } from './utils/user'
 import { PROJECT_FILE } from './constants/product'
 /**
- * Find all KODING.md files in the current working directory
+ * Find all Code_Context.md and CLAUDE.md files in the current working directory
  */
 export async function getClaudeFiles(): Promise<string | null> {
   const abortController = new AbortController()
   const timeout = setTimeout(() => abortController.abort(), 3000)
   try {
-    const files = await ripGrep(
-      ['--files', '--glob', join('**', '*', PROJECT_FILE)],
-      getCwd(),
-      abortController.signal,
-    )
-    if (!files.length) {
+    // Search for both Code_Context.md and CLAUDE.md files
+    const [codeContextFiles, claudeFiles] = await Promise.all([
+      ripGrep(
+        ['--files', '--glob', join('**', '*', PROJECT_FILE)],
+        getCwd(),
+        abortController.signal,
+      ).catch(() => []),
+      ripGrep(
+        ['--files', '--glob', join('**', '*', 'CLAUDE.md')],
+        getCwd(),
+        abortController.signal,
+      ).catch(() => [])
+    ])
+    
+    const allFiles = [...codeContextFiles, ...claudeFiles]
+    if (!allFiles.length) {
       return null
     }
 
-    // Add instructions for additional KODING.md files
-    return `NOTE: Additional ${PROJECT_FILE} files were found. When working in these directories, make sure to read and follow the instructions in the corresponding ${PROJECT_FILE} file:\n${files
+    // Add instructions for additional project files
+    const fileTypes = []
+    if (codeContextFiles.length > 0) fileTypes.push('Code_Context.md')
+    if (claudeFiles.length > 0) fileTypes.push('CLAUDE.md')
+    
+    return `NOTE: Additional project documentation files (${fileTypes.join(', ')}) were found. When working in these directories, make sure to read and follow the instructions in the corresponding files:\n${allFiles
       .map(_ => path.join(getCwd(), _))
       .map(_ => `- ${_}`)
       .join('\n')}`
@@ -76,6 +90,44 @@ export const getReadme = memoize(async (): Promise<string | null> => {
     }
     const content = await readFile(readmePath, 'utf-8')
     return content
+  } catch (e) {
+    logError(e)
+    return null
+  }
+})
+
+/**
+ * Get project documentation content (Code_Context.md and CLAUDE.md)
+ */
+export const getProjectDocs = memoize(async (): Promise<string | null> => {
+  try {
+    const cwd = getCwd()
+    const codeContextPath = join(cwd, 'Code_Context.md')
+    const claudePath = join(cwd, 'CLAUDE.md')
+    
+    const docs = []
+    
+    // Try to read Code_Context.md
+    if (existsSync(codeContextPath)) {
+      try {
+        const content = await readFile(codeContextPath, 'utf-8')
+        docs.push(`# Code_Context.md\n\n${content}`)
+      } catch (e) {
+        logError(e)
+      }
+    }
+    
+    // Try to read CLAUDE.md
+    if (existsSync(claudePath)) {
+      try {
+        const content = await readFile(claudePath, 'utf-8')
+        docs.push(`# CLAUDE.md\n\n${content}`)
+      } catch (e) {
+        logError(e)
+      }
+    }
+    
+    return docs.length > 0 ? docs.join('\n\n---\n\n') : null
   } catch (e) {
     logError(e)
     return null
@@ -161,12 +213,13 @@ export const getContext = memoize(
     const codeStyle = getCodeStyle()
     const projectConfig = getCurrentProjectConfig()
     const dontCrawl = projectConfig.dontCrawlDirectory
-    const [gitStatus, directoryStructure, claudeFiles, readme] =
+    const [gitStatus, directoryStructure, claudeFiles, readme, projectDocs] =
       await Promise.all([
         getGitStatus(),
         dontCrawl ? Promise.resolve('') : getDirectoryStructure(),
         dontCrawl ? Promise.resolve('') : getClaudeFiles(),
         getReadme(),
+        getProjectDocs(),
       ])
     return {
       ...projectConfig.context,
@@ -175,6 +228,7 @@ export const getContext = memoize(
       ...(codeStyle ? { codeStyle } : {}),
       ...(claudeFiles ? { claudeFiles } : {}),
       ...(readme ? { readme } : {}),
+      ...(projectDocs ? { projectDocs } : {}),
     }
   },
 )

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { FallbackToolUseRejectedMessage } from '../../components/FallbackToolUseRejectedMessage'
 import { Tool } from '../../Tool'
 import { MEMORY_DIR } from '../../utils/env'
+import { resolveAgentId } from '../../utils/agentStorage'
 import { DESCRIPTION, PROMPT } from './prompt'
 
 const inputSchema = z.strictObject({
@@ -33,6 +34,9 @@ export const MemoryWriteTool = {
   isReadOnly() {
     return false
   },
+  isConcurrencySafe() {
+    return false // MemoryWrite modifies state, not safe for concurrent execution
+  },
   needsPermissions() {
     return false
   },
@@ -56,15 +60,19 @@ export const MemoryWriteTool = {
       </Box>
     )
   },
-  async validateInput({ file_path }) {
-    const fullPath = join(MEMORY_DIR, file_path)
-    if (!fullPath.startsWith(MEMORY_DIR)) {
+  async validateInput({ file_path }, context) {
+    const agentId = resolveAgentId(context?.agentId)
+    const agentMemoryDir = join(MEMORY_DIR, 'agents', agentId)
+    const fullPath = join(agentMemoryDir, file_path)
+    if (!fullPath.startsWith(agentMemoryDir)) {
       return { result: false, message: 'Invalid memory file path' }
     }
     return { result: true }
   },
-  async *call({ file_path, content }) {
-    const fullPath = join(MEMORY_DIR, file_path)
+  async *call({ file_path, content }, context) {
+    const agentId = resolveAgentId(context?.agentId)
+    const agentMemoryDir = join(MEMORY_DIR, 'agents', agentId)
+    const fullPath = join(agentMemoryDir, file_path)
     mkdirSync(dirname(fullPath), { recursive: true })
     writeFileSync(fullPath, content, 'utf-8')
     yield {

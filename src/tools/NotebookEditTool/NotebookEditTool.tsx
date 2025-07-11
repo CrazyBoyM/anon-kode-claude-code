@@ -16,6 +16,7 @@ import { safeParseJSON } from '../../utils/json'
 import { getCwd } from '../../utils/state'
 import { DESCRIPTION, PROMPT } from './prompt'
 import { hasWritePermission } from '../../utils/permissions/filesystem'
+import { emitReminderEvent } from '../../services/systemReminder'
 
 const inputSchema = z.strictObject({
   notebook_path: z
@@ -56,6 +57,9 @@ export const NotebookEditTool = {
   },
   isReadOnly() {
     return false
+  },
+  isConcurrencySafe() {
+    return false // NotebookEditTool modifies state/files, not safe for concurrent execution
   },
   needsPermissions({ notebook_path }) {
     return !hasWritePermission(notebook_path)
@@ -225,6 +229,17 @@ export const NotebookEditTool = {
         enc,
         endings!,
       )
+
+      // Emit file edited event for system reminders
+      emitReminderEvent('file:edited', {
+        filePath: fullPath,
+        cellNumber: cell_number,
+        newSource: new_source,
+        cellType: cell_type,
+        editMode: edit_mode || 'replace',
+        timestamp: Date.now(),
+        operation: 'notebook_edit'
+      })
       const data = {
         cell_number,
         new_source,

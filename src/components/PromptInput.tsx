@@ -218,7 +218,7 @@ function PromptInput({
 
         // Create additional context to inform Claude this is for KODING.md
         const kodingContext =
-          'The user is using Koding mode. Format your response as a comprehensive, well-structured document suitable for adding to KODING.md. Use proper markdown formatting with headings, lists, code blocks, etc. The response should be complete and ready to add to KODING.md documentation.'
+          'The user is using Koding mode. Format your response as a comprehensive, well-structured document suitable for adding to Code_Context.md. Use proper markdown formatting with headings, lists, code blocks, etc. The response should be complete and ready to add to Code_Context.md documentation.'
 
         // Switch to prompt mode but tag the submission for later capture
         onModeChange('prompt')
@@ -273,7 +273,7 @@ function PromptInput({
       }
     }
 
-    // If in koding mode or input starts with '#', interpret it using AI before appending to KODING.md
+    // If in koding mode or input starts with '#', interpret it using AI before appending to Code_Context.md
     else if (mode === 'koding' || input.startsWith('#')) {
       try {
         // Strip the # if we're in koding mode and the user didn't type it (since it's implied)
@@ -491,7 +491,7 @@ function PromptInput({
                   color={mode === 'koding' ? theme.koding : undefined}
                   dimColor={mode !== 'koding'}
                 >
-                  · # for KODING.md
+                  · # for Code_Context.md
                 </Text>
                 <Text dimColor>· / for commands · esc to undo</Text>
               </>

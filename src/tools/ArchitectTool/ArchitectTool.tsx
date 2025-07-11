@@ -45,6 +45,9 @@ export const ArchitectTool = {
   isReadOnly() {
     return true
   },
+  isConcurrencySafe() {
+    return true // ArchitectTool is read-only, safe for concurrent execution
+  },
   userFacingName() {
     return 'Architect'
   },

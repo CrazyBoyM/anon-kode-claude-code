@@ -3,6 +3,7 @@ import chalk from 'chalk'
 import { last, memoize } from 'lodash-es'
 import { EOL } from 'os'
 import * as React from 'react'
+import { Box, Text } from 'ink'
 import { z } from 'zod'
 import { Tool } from '../../Tool'
 import { FallbackToolUseRejectedMessage } from '../../components/FallbackToolUseRejectedMessage'
@@ -26,10 +27,15 @@ import {
 } from '../../utils/messages.js'
 import { getSlowAndCapableModel } from '../../utils/model'
 import { getMaxThinkingTokens } from '../../utils/thinking'
+import { getTheme } from '../../utils/theme'
+import { generateAgentId } from '../../utils/agentStorage'
 import { getAgentTools, getPrompt } from './prompt'
 import { TOOL_NAME } from './constants'
 
 const inputSchema = z.object({
+  description: z
+    .string()
+    .describe('A short (3-5 word) description of the task'),
   prompt: z.string().describe('The task for the agent to perform'),
 })
 
@@ -39,11 +45,11 @@ export const AgentTool = {
   },
   name: TOOL_NAME,
   async description() {
-    return 'Launch a new task'
+    return 'Launch a new agent for intelligent search and analysis tasks'
   },
   inputSchema,
   async *call(
-    { prompt },
+    { description, prompt },
     {
       abortController,
       options: {
@@ -81,6 +87,9 @@ export const AgentTool = {
       getNextAvailableLogSidechainNumber(messageLogName, forkNumber),
     )
 
+    // Generate unique Agent ID for this agent execution
+    const agentId = generateAgentId()
+
     for await (const message of query(
       messages,
       agentPrompt,
@@ -99,6 +108,7 @@ export const AgentTool = {
           maxThinkingTokens,
         },
         messageId: getLastAssistantMessageId(messages),
+        agentId, // Pass the generated Agent ID
         readFileTimestamps,
       },
     )) {
@@ -186,6 +196,24 @@ export const AgentTool = {
   isReadOnly() {
     return true // for now...
   },
+  isConcurrencySafe() {
+    return true // Task tool supports concurrent execution in official implementation
+  },
+  async validateInput(input, context) {
+    if (!input.description || typeof input.description !== 'string') {
+      return {
+        result: false,
+        message: 'Description is required and must be a string',
+      }
+    }
+    if (!input.prompt || typeof input.prompt !== 'string') {
+      return {
+        result: false,
+        message: 'Prompt is required and must be a string',
+      }
+    }
+    return { result: true }
+  },
   async isEnabled() {
     return true
   },
@@ -198,9 +226,25 @@ export const AgentTool = {
   renderResultForAssistant(data) {
     return data
   },
-  renderToolUseMessage({ prompt }, { verbose }) {
-    const lines = prompt.split(EOL)
-    return applyMarkdown(!verbose && lines.length > 1 ? lines[0] + '…' : prompt)
+  renderToolUseMessage({ description, prompt }, { verbose }) {
+    if (!description || !prompt) return null
+    if (verbose) {
+      const theme = getTheme()
+      return (
+        <>
+          <Text bold color="yellow">
+            ############### Task Prompt Start ###############
+          </Text>
+          <Text>{'\n\n'}</Text>
+          <Text bold color={theme.text}>{applyMarkdown(prompt)}</Text>
+          <Text>{'\n\n'}</Text>
+          <Text bold color="yellow">
+            ############### Task Prompt End ###############
+          </Text>
+        </>
+      )
+    }
+    return description
   },
   renderToolUseRejectedMessage() {
     return <FallbackToolUseRejectedMessage />

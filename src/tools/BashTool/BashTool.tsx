@@ -76,6 +76,9 @@ export const BashTool = {
   isReadOnly() {
     return false
   },
+  isConcurrencySafe() {
+    return false // BashTool modifies state/files, not safe for concurrent execution
+  },
   inputSchema,
   userFacingName() {
     return 'Bash'

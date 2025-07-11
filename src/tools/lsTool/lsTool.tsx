@@ -11,7 +11,7 @@ import { getTheme } from '../../utils/theme'
 import { DESCRIPTION } from './prompt'
 import { hasReadPermission } from '../../utils/permissions/filesystem'
 
-const MAX_LINES = 4
+const MAX_LINES = 5
 const MAX_FILES = 1000
 const TRUNCATED_MESSAGE = `There are more than ${MAX_FILES} files in the repository. Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first ${MAX_FILES} files and directories are included below:\n\n`
 
@@ -38,6 +38,9 @@ export const LSTool = {
   },
   isReadOnly() {
     return true
+  },
+  isConcurrencySafe() {
+    return true // LSTool is read-only, safe for concurrent execution
   },
   needsPermissions({ path }) {
     return !hasReadPermission(path)

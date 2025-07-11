@@ -16,11 +16,11 @@ NODE_ENV=development pnpm run dev --verbose --debug
 
 ## Installation and Usage
 
-This is "anon-kode", a terminal-based AI coding assistant that provides Claude-like functionality through any OpenAI-compatible API.
+This is "last-kode", a terminal-based AI coding assistant that provides Claude-like functionality through any OpenAI-compatible API.
 
 ### Installation
 ```bash
-npm install -g anon-kode
+npm install -g last-kode
 cd your-project
 kode
 ```

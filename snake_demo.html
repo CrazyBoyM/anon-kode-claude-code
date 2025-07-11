@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game - Enhanced Three.js</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        .ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff88;
+            font-size: 28px;
+            z-index: 100;
+            text-shadow: 0 0 10px #00ff88;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            backdrop-filter: blur(5px);
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #88ffaa;
+            font-size: 16px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 36px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            background: rgba(0, 0, 0, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #ff4444;
+            text-shadow: 0 0 20px #ff4444;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 40px rgba(255, 68, 68, 0.5);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.05); }
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff88;
+            font-size: 24px;
+            z-index: 100;
+        }
+        .power-up-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #ffaa00;
+            font-size: 18px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #ffaa00;
+            display: none;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 25px rgba(255, 170, 0, 0.4);
+            animation: glow 1s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 15px rgba(255, 170, 0, 0.2); }
+            to { box-shadow: 0 0 35px rgba(255, 170, 0, 0.6); }
+        }
+        .special-food-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #88ffaa;
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #00ff88;
+        }
+        .mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: none;
+            z-index: 100;
+        }
+        .touch-button {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid #00ff88;
+            border-radius: 50%;
+            color: #00ff88;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 5px;
+            user-select: none;
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        .touch-button:active {
+            background: rgba(0, 255, 136, 0.6);
+            transform: scale(0.95);
+        }
+        .d-pad {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 5px;
+            width: 200px;
+            height: 200px;
+        }
+        .d-pad .touch-button:nth-child(2) { grid-column: 2; grid-row: 1; } /* Up */
+        .d-pad .touch-button:nth-child(3) { grid-column: 1; grid-row: 2; } /* Left */
+        .d-pad .touch-button:nth-child(4) { grid-column: 3; grid-row: 2; } /* Right */
+        .d-pad .touch-button:nth-child(5) { grid-column: 2; grid-row: 3; } /* Down */
+        @media (max-width: 768px) {
+            .mobile-controls {
+                display: block;
+            }
+            .special-food-legend {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading Enhanced Snake Game...</div>
+    <div class="ui" style="display: none;" id="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div style="font-size: 16px; margin-top: 5px;">Level: <span id="level">1</span></div>
+        <div style="font-size: 14px; margin-top: 5px;">Speed: <span id="speed">Normal</span></div>
+    </div>
+    <div class="power-up-info" id="powerUpInfo">
+        <div id="powerUpText"></div>
+        <div id="powerUpTimer"></div>
+    </div>
+    <div class="special-food-legend">
+        <div style="margin-bottom: 5px;"><span style="color: #ff4444;">●</span> Normal Food (+1)</div>
+        <div style="margin-bottom: 5px;"><span style="color: #ffaa00;">⬟</span> Golden Food (+5)</div>
+        <div style="margin-bottom: 5px;"><span style="color: #4488ff;">◆</span> Speed Boost (10s)</div>
+        <div><span style="color: #ff44ff;">♦</span> Slow Motion (15s)</div>
+    </div>
+    <div class="mobile-controls" id="mobileControls">
+        <div class="d-pad">
+            <div class="touch-button" id="btnUp">↑</div>
+            <div class="touch-button" id="btnLeft">←</div>
+            <div class="touch-button" id="btnRight">→</div>
+            <div class="touch-button" id="btnDown">↓</div>
+        </div>
+    </div>
+    <div class="controls" style="display: none;" id="controls">
+        Use arrow keys to control the snake<br>
+        Press R to restart | Press P to pause | Press M to toggle music<br>
+        Collect special foods for power-ups!
+    </div>
+    <div class="game-over" id="gameOver">
+        <div>Game Over!</div>
+        <div style="font-size: 20px; margin-top: 10px;">Final Score: <span id="finalScore">0</span></div>
+        <div style="font-size: 18px; margin-top: 10px;">Press R to restart</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Audio Context and Sound Effects
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function createTone(frequency, type, duration, volume = 0.3) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.type = type;
+            
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function playEatSound() {
+            createTone(523.25, 'sine', 0.1, 0.3); // C5
+            setTimeout(() => createTone(659.25, 'sine', 0.1, 0.3), 50); // E5
+        }
+
+        function playSpecialEatSound() {
+            createTone(523.25, 'sine', 0.05, 0.4); // C5
+            setTimeout(() => createTone(659.25, 'sine', 0.05, 0.4), 25); // E5
+            setTimeout(() => createTone(783.99, 'sine', 0.05, 0.4), 50); // G5
+            setTimeout(() => createTone(1046.50, 'sine', 0.15, 0.4), 75); // C6
+        }
+
+        function playGameOverSound() {
+            createTone(261.63, 'sine', 0.5, 0.4); // C4
+            setTimeout(() => createTone(233.08, 'sine', 0.5, 0.4), 250); // Bb3
+            setTimeout(() => createTone(196.00, 'sine', 1.0, 0.4), 500); // G3
+        }
+
+        function playLevelUpSound() {
+            createTone(523.25, 'sine', 0.1, 0.3); // C5
+            setTimeout(() => createTone(659.25, 'sine', 0.1, 0.3), 100); // E5
+            setTimeout(() => createTone(783.99, 'sine', 0.1, 0.3), 200); // G5
+            setTimeout(() => createTone(1046.50, 'sine', 0.2, 0.3), 300); // C6
+            setTimeout(() => createTone(1318.51, 'sine', 0.3, 0.3), 400); // E6
+        }
+
+        function playPowerUpSound() {
+            for (let i = 0; i < 8; i++) {
+                setTimeout(() => {
+                    createTone(440 + i * 55, 'square', 0.05, 0.2);
+                }, i * 30);
+            }
+        }
+
+        // Background Music
+        let backgroundMusicPlaying = false;
+        let musicInterval;
+
+        function startBackgroundMusic() {
+            if (backgroundMusicPlaying) return;
+            backgroundMusicPlaying = true;
+            
+            const melody = [523.25, 587.33, 659.25, 698.46, 783.99, 659.25, 523.25]; // C-D-E-F-G-E-C
+            let noteIndex = 0;
+            
+            musicInterval = setInterval(() => {
+                if (gameRunning && !isPaused) {
+                    createTone(melody[noteIndex], 'sine', 0.3, 0.1);
+                    noteIndex = (noteIndex + 1) % melody.length;
+                }
+            }, 800);
+        }
+
+        function stopBackgroundMusic() {
+            backgroundMusicPlaying = false;
+            if (musicInterval) {
+                clearInterval(musicInterval);
+            }
+        }
+
+        // Game variables
+        const gridSize = 20;
+        const boardSize = 20;
+        let snake = [{x: 10, y: 10}];
+        let food = {};
+        let obstacles = [];
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let level = 1;
+        let gameRunning = true;
+        let isPaused = false;
+        let baseGameSpeed = 200;
+        let gameSpeed = baseGameSpeed;
+        
+        // Special food and power-ups
+        let specialFood = null;
+        let powerUpActive = false;
+        let powerUpType = null;
+        let powerUpTimer = 0;
+        let powerUpDuration = 0;
+
+        // Food types
+        const FOOD_TYPES = {
+            NORMAL: { color: 0xff2244, points: 1, probability: 0.7 },
+            GOLDEN: { color: 0xffaa00, points: 5, probability: 0.15 },
+            SPEED_BOOST: { color: 0x4488ff, points: 1, probability: 0.08, powerUp: 'speed', duration: 10000 },
+            SLOW_MOTION: { color: 0xff44ff, points: 1, probability: 0.07, powerUp: 'slow', duration: 15000 }
+        };
+
+        // Object pools for performance optimization
+        const geometryPool = {
+            cube: new THREE.BoxGeometry(0.8, 0.8, 0.8),
+            sphere: new THREE.SphereGeometry(0.5, 16, 16),
+            obstacle: new THREE.CylinderGeometry(0.4, 0.4, 1.2, 8),
+            diamond: new THREE.OctahedronGeometry(0.4),
+            pyramid: new THREE.ConeGeometry(0.4, 0.8, 6),
+            board: new THREE.PlaneGeometry(boardSize, boardSize),
+            particle: new THREE.SphereGeometry(0.05, 8, 8)
+        };
+
+        const materialPool = {
+            snake: new THREE.MeshPhongMaterial({ 
+                color: 0x00ff44,
+                emissive: 0x004411,
+                shininess: 100,
+                specular: 0x00ff88
+            }),
+            snakeHead: new THREE.MeshPhongMaterial({ 
+                color: 0x00ff88,
+                emissive: 0x002244,
+                shininess: 150,
+                specular: 0x00ffff
+            }),
+            obstacle: new THREE.MeshPhongMaterial({ 
+                color: 0x666666,
+                emissive: 0x222222,
+                shininess: 50,
+                specular: 0x888888
+            }),
+            board: new THREE.MeshLambertMaterial({ 
+                color: 0x1a1a2e,
+                transparent: true,
+                opacity: 0.8
+            })
+        };
+
+        // Mesh pools for reuse
+        const meshPools = {
+            snakeSegments: [],
+            particles: [],
+            obstacles: []
+        };
+
+        function getMeshFromPool(type, geometry, material) {
+            const pool = meshPools[type];
+            if (pool && pool.length > 0) {
+                const mesh = pool.pop();
+                mesh.geometry = geometry;
+                mesh.material = material;
+                mesh.visible = true;
+                return mesh;
+            }
+            return new THREE.Mesh(geometry, material);
+        }
+
+        function returnMeshToPool(type, mesh) {
+            mesh.visible = false;
+            scene.remove(mesh);
+            const pool = meshPools[type];
+            if (pool) {
+                pool.push(mesh);
+            }
+        }
+
+        // Three.js setup
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x0a0a0a, 10, 50);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x0a0a0a, 0.8);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Enhanced Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0x00ff88, 1);
+        directionalLight.position.set(10, 20, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+        // Point lights for atmosphere
+        const pointLight1 = new THREE.PointLight(0x00ff88, 0.5, 30);
+        pointLight1.position.set(-10, 5, -10);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0xff4444, 0.3, 25);
+        pointLight2.position.set(10, 5, 10);
+        scene.add(pointLight2);
+
+        // Enhanced Materials
+        const snakeMaterial = materialPool.snake;
+        const snakeHeadMaterial = materialPool.snakeHead;
+        const foodMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xff2244,
+            emissive: 0x441111,
+            shininess: 100,
+            specular: 0xff4444
+        });
+        const obstacleMaterial = materialPool.obstacle;
+        const boardMaterial = materialPool.board;
+
+        // Geometries (use pooled geometries)
+        const cubeGeometry = geometryPool.cube;
+        const sphereGeometry = geometryPool.sphere;
+        const obstacleGeometry = geometryPool.obstacle;
+        const diamondGeometry = geometryPool.diamond;
+        const pyramidGeometry = geometryPool.pyramid;
+        const boardGeometry = geometryPool.board;
+
+        // Game board with grid lines (using pooled materials)
+        const board = new THREE.Mesh(geometryPool.board, materialPool.board);
+        board.rotation.x = -Math.PI / 2;
+        board.receiveShadow = true;
+        scene.add(board);
+
+        // Add grid lines
+        const gridHelper = new THREE.GridHelper(boardSize, boardSize, 0x00ff88, 0x004422);
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        // Particle System
+        let particles = [];
+
+        function createParticle(position, color = 0x00ff88, velocity = null) {
+            const particle = getMeshFromPool('particles', geometryPool.particle, 
+                new THREE.MeshBasicMaterial({ 
+                    color: color,
+                    transparent: true,
+                    opacity: 1
+                })
+            );
+            particle.position.copy(position);
+            particle.velocity = velocity || new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 2 + 1,
+                (Math.random() - 0.5) * 2
+            );
+            particle.life = 1.0;
+            scene.add(particle);
+            particles.push(particle);
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.position.add(particle.velocity.clone().multiplyScalar(0.02));
+                particle.velocity.y -= 0.02; // gravity
+                particle.life -= 0.02;
+                particle.material.opacity = particle.life;
+                particle.scale.setScalar(particle.life);
+
+                if (particle.life <= 0) {
+                    returnMeshToPool('particles', particle);
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        // Game objects
+        let snakeSegments = [];
+        let foodMesh = null;
+        let obstacleMeshes = [];
+
+        // UI elements
+        const scoreElement = document.getElementById('score');
+        const levelElement = document.getElementById('level');
+        const speedElement = document.getElementById('speed');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const loadingElement = document.getElementById('loading');
+        const uiElement = document.getElementById('ui');
+        const controlsElement = document.getElementById('controls');
+        const powerUpInfoElement = document.getElementById('powerUpInfo');
+        const powerUpTextElement = document.getElementById('powerUpText');
+        const powerUpTimerElement = document.getElementById('powerUpTimer');
+
+        // Camera position with smooth movement
+        camera.position.set(0, 18, 18);
+        camera.lookAt(0, 0, 0);
+
+        let cameraTarget = new THREE.Vector3(0, 0, 0);
+        let cameraOffset = new THREE.Vector3(0, 18, 18);
+
+        function generateObstacles() {
+            obstacles = [];
+            // Return existing obstacle meshes to pool
+            obstacleMeshes.forEach(mesh => returnMeshToPool('obstacles', mesh));
+            obstacleMeshes = [];
+
+            const numObstacles = Math.min(level + 2, 8);
+            for (let i = 0; i < numObstacles; i++) {
+                let obstacle;
+                do {
+                    obstacle = {
+                        x: Math.floor(Math.random() * boardSize),
+                        y: Math.floor(Math.random() * boardSize)
+                    };
+                } while (
+                    (obstacle.x === 10 && obstacle.y === 10) || // Don't place on starting position
+                    (food && obstacle.x === food.x && obstacle.y === food.y) || // Don't place on food
+                    obstacles.some(obs => obs.x === obstacle.x && obs.y === obstacle.y) // Don't overlap
+                );
+
+                obstacles.push(obstacle);
+
+                const obstacleMesh = getMeshFromPool('obstacles', geometryPool.obstacle, materialPool.obstacle);
+                obstacleMesh.position.set(
+                    obstacle.x - boardSize / 2 + 0.5,
+                    0.6,
+                    obstacle.y - boardSize / 2 + 0.5
+                );
+                obstacleMesh.castShadow = true;
+                scene.add(obstacleMesh);
+                obstacleMeshes.push(obstacleMesh);
+            }
+        }
+
+        function getFoodType() {
+            const rand = Math.random();
+            let cumulative = 0;
+            
+            for (const [type, config] of Object.entries(FOOD_TYPES)) {
+                cumulative += config.probability;
+                if (rand <= cumulative) {
+                    return { type, ...config };
+                }
+            }
+            return { type: 'NORMAL', ...FOOD_TYPES.NORMAL };
+        }
+
+        function generateFood() {
+            let foodPosition;
+            do {
+                foodPosition = {
+                    x: Math.floor(Math.random() * boardSize),
+                    y: Math.floor(Math.random() * boardSize)
+                };
+            } while (
+                snake.some(segment => segment.x === foodPosition.x && segment.y === foodPosition.y) ||
+                obstacles.some(obs => obs.x === foodPosition.x && obs.y === foodPosition.y)
+            );
+            
+            const foodType = getFoodType();
+            food = { ...foodPosition, ...foodType };
+            
+            // Remove old food with fade out animation
+            if (foodMesh) {
+                const oldFood = foodMesh;
+                const fadeOut = setInterval(() => {
+                    oldFood.material.opacity -= 0.1;
+                    oldFood.scale.multiplyScalar(0.9);
+                    if (oldFood.material.opacity <= 0) {
+                        scene.remove(oldFood);
+                        clearInterval(fadeOut);
+                    }
+                }, 50);
+            }
+            
+            // Create new food with type-specific visuals
+            let geometry = geometryPool.sphere;
+            if (food.type === 'GOLDEN') geometry = geometryPool.diamond;
+            else if (food.type === 'SPEED_BOOST') geometry = geometryPool.pyramid;
+            else if (food.type === 'SLOW_MOTION') geometry = geometryPool.diamond;
+
+            const material = new THREE.MeshPhongMaterial({ 
+                color: food.color,
+                emissive: food.color * 0.3,
+                shininess: 100,
+                specular: food.color,
+                transparent: true,
+                opacity: 0
+            });
+
+            foodMesh = new THREE.Mesh(geometry, material);
+            foodMesh.position.set(
+                food.x - boardSize / 2 + 0.5,
+                0.6,
+                food.y - boardSize / 2 + 0.5
+            );
+            foodMesh.castShadow = true;
+            foodMesh.scale.setScalar(0.1);
+            scene.add(foodMesh);
+
+            // Fade in animation
+            const fadeIn = setInterval(() => {
+                foodMesh.material.opacity += 0.1;
+                foodMesh.scale.addScalar(0.09);
+                if (foodMesh.material.opacity >= 1) {
+                    clearInterval(fadeIn);
+                }
+            }, 50);
+
+            // Food spawn particles
+            for (let i = 0; i < 8; i++) {
+                createParticle(foodMesh.position.clone(), food.color);
+            }
+        }
+
+        function createSnakeSegment(x, y, isHead = false) {
+            const geometry = isHead ? geometryPool.sphere : geometryPool.cube;
+            const material = isHead ? materialPool.snakeHead : materialPool.snake;
+            const segment = getMeshFromPool('snakeSegments', geometry, material);
+            segment.position.set(
+                x - boardSize / 2 + 0.5,
+                0.5,
+                y - boardSize / 2 + 0.5
+            );
+            segment.castShadow = true;
+            scene.add(segment);
+            return segment;
+        }
+
+        function updateSnake() {
+            // Return existing snake segments to pool
+            snakeSegments.forEach(segment => {
+                returnMeshToPool('snakeSegments', segment);
+            });
+            snakeSegments = [];
+
+            // Create new snake segments with smooth interpolation
+            snake.forEach((segment, index) => {
+                const mesh = createSnakeSegment(segment.x, segment.y, index === 0);
+                
+                // Add subtle breathing animation to segments
+                mesh.scale.setScalar(1 + Math.sin(Date.now() * 0.005 + index) * 0.05);
+                
+                // Add slight position offset for organic movement
+                const offset = Math.sin(Date.now() * 0.003 + index * 0.5) * 0.02;
+                mesh.position.y += offset;
+                
+                snakeSegments.push(mesh);
+            });
+
+            // Update camera to follow snake head
+            if (snake.length > 0) {
+                const head = snake[0];
+                cameraTarget.set(
+                    head.x - boardSize / 2 + 0.5,
+                    0,
+                    head.y - boardSize / 2 + 0.5
+                );
+            }
+        }
+
+        function activatePowerUp(type, duration) {
+            powerUpActive = true;
+            powerUpType = type;
+            powerUpTimer = duration;
+            powerUpDuration = duration;
+
+            if (type === 'speed') {
+                gameSpeed = Math.max(50, baseGameSpeed * 0.5);
+                powerUpTextElement.textContent = "SPEED BOOST!";
+                speedElement.textContent = "Fast";
+            } else if (type === 'slow') {
+                gameSpeed = baseGameSpeed * 2;
+                powerUpTextElement.textContent = "SLOW MOTION!";
+                speedElement.textContent = "Slow";
+            }
+
+            powerUpInfoElement.style.display = 'block';
+            startGameLoop();
+        }
+
+        function updatePowerUps() {
+            if (powerUpActive) {
+                powerUpTimer -= gameSpeed;
+                const remainingSeconds = Math.ceil(powerUpTimer / 1000);
+                powerUpTimerElement.textContent = `${remainingSeconds}s remaining`;
+
+                if (powerUpTimer <= 0) {
+                    powerUpActive = false;
+                    powerUpType = null;
+                    gameSpeed = baseGameSpeed;
+                    speedElement.textContent = "Normal";
+                    powerUpInfoElement.style.display = 'none';
+                    startGameLoop();
+                }
+            }
+        }
+
+        function updateLevel() {
+            const newLevel = Math.floor(score / 15) + 1;
+            if (newLevel > level) {
+                level = newLevel;
+                baseGameSpeed = Math.max(80, 200 - (level - 1) * 15);
+                if (!powerUpActive) {
+                    gameSpeed = baseGameSpeed;
+                }
+                levelElement.textContent = level;
+                
+                // Regenerate obstacles for new level
+                generateObstacles();
+                
+                // Play level up sound
+                playLevelUpSound();
+                
+                // Level up particles
+                for (let i = 0; i < 20; i++) {
+                    createParticle(new THREE.Vector3(
+                        Math.random() * 10 - 5,
+                        2,
+                        Math.random() * 10 - 5
+                    ), 0xffff00);
+                }
+            }
+        }
+
+        function updateGame() {
+            if (!gameRunning || isPaused) return;
+
+            updatePowerUps();
+
+            if (dx === 0 && dy === 0) return;
+
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+            // Check wall collision
+            if (head.x < 0 || head.x >= boardSize || head.y < 0 || head.y >= boardSize) {
+                gameOver();
+                return;
+            }
+
+            // Check self collision
+            if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+                gameOver();
+                return;
+            }
+
+            // Check obstacle collision
+            if (obstacles.some(obs => obs.x === head.x && obs.y === head.y)) {
+                gameOver();
+                return;
+            }
+
+            snake.unshift(head);
+
+            // Check food collision
+            if (head.x === food.x && head.y === food.y) {
+                score += food.points;
+                scoreElement.textContent = score;
+                
+                // Play appropriate eat sound
+                if (food.points > 1 || food.powerUp) {
+                    playSpecialEatSound();
+                } else {
+                    playEatSound();
+                }
+                
+                // Apply power-up if food has one
+                if (food.powerUp) {
+                    activatePowerUp(food.powerUp, food.duration);
+                    playPowerUpSound();
+                }
+                
+                updateLevel();
+                generateFood();
+                
+                // Eating particles - more for special food
+                const particleCount = food.points > 1 ? 20 : 12;
+                for (let i = 0; i < particleCount; i++) {
+                    createParticle(new THREE.Vector3(
+                        head.x - boardSize / 2 + 0.5,
+                        0.5,
+                        head.y - boardSize / 2 + 0.5
+                    ), 0x00ff88);
+                }
+            } else {
+                snake.pop();
+            }
+
+            updateSnake();
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            gameOverElement.style.display = 'block';
+            powerUpInfoElement.style.display = 'none';
+            
+            // Stop background music and play game over sound
+            stopBackgroundMusic();
+            playGameOverSound();
+            
+            // Enhanced death animation
+            if (snake.length > 0) {
+                const head = snake[0];
+                const headPosition = new THREE.Vector3(
+                    head.x - boardSize / 2 + 0.5,
+                    0.5,
+                    head.y - boardSize / 2 + 0.5
+                );
+                
+                // Large explosion of particles
+                for (let i = 0; i < 50; i++) {
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 4,
+                        Math.random() * 3 + 1,
+                        (Math.random() - 0.5) * 4
+                    );
+                    createParticle(headPosition.clone(), 0xff0000, velocity);
+                }
+                
+                // Animate snake segments disappearing one by one
+                snakeSegments.forEach((segment, index) => {
+                    setTimeout(() => {
+                        const dissolve = setInterval(() => {
+                            segment.material.opacity -= 0.05;
+                            segment.scale.multiplyScalar(0.95);
+                            if (segment.material.opacity <= 0) {
+                                scene.remove(segment);
+                                clearInterval(dissolve);
+                            }
+                        }, 50);
+                        
+                        // Add particles at each segment
+                        for (let i = 0; i < 5; i++) {
+                            createParticle(segment.position.clone(), 0xff4444);
+                        }
+                    }, index * 100);
+                });
+            }
+        }
+
+        function resetGame() {
+            snake = [{x: 10, y: 10}];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            level = 1;
+            baseGameSpeed = 200;
+            gameSpeed = baseGameSpeed;
+            gameRunning = true;
+            isPaused = false;
+            powerUpActive = false;
+            powerUpType = null;
+            powerUpTimer = 0;
+            
+            scoreElement.textContent = score;
+            levelElement.textContent = level;
+            speedElement.textContent = "Normal";
+            gameOverElement.style.display = 'none';
+            powerUpInfoElement.style.display = 'none';
+            
+            // Start background music
+            startBackgroundMusic();
+            
+            generateObstacles();
+            generateFood();
+            updateSnake();
+        }
+
+        let gameLoopInterval;
+
+        function startGameLoop() {
+            if (gameLoopInterval) clearInterval(gameLoopInterval);
+            gameLoopInterval = setInterval(updateGame, gameSpeed);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Smooth camera movement
+            camera.position.lerp(cameraTarget.clone().add(cameraOffset), 0.02);
+            camera.lookAt(cameraTarget);
+            
+            // Rotate food for visual effect
+            if (foodMesh) {
+                foodMesh.rotation.y += 0.03;
+                foodMesh.position.y = 0.6 + Math.sin(Date.now() * 0.003) * 0.1;
+                
+                // Special animations for special foods
+                if (food.type === 'SPEED_BOOST') {
+                    foodMesh.rotation.x += 0.05;
+                } else if (food.type === 'SLOW_MOTION') {
+                    foodMesh.rotation.z += 0.02;
+                }
+            }
+            
+            // Animate obstacles
+            obstacleMeshes.forEach((obstacle, index) => {
+                obstacle.rotation.y += 0.01 + index * 0.002;
+            });
+            
+            // Animate lights
+            pointLight1.intensity = 0.5 + Math.sin(Date.now() * 0.002) * 0.2;
+            pointLight2.intensity = 0.3 + Math.cos(Date.now() * 0.003) * 0.1;
+            
+            updateParticles();
+            renderer.render(scene, camera);
+        }
+
+        // Touch controls for mobile
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchMinDistance = 30;
+
+        function handleDirectionInput(direction) {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            switch(direction) {
+                case 'up':
+                    if (dy === 0) { dx = 0; dy = -1; }
+                    break;
+                case 'down':
+                    if (dy === 0) { dx = 0; dy = 1; }
+                    break;
+                case 'left':
+                    if (dx === 0) { dx = -1; dy = 0; }
+                    break;
+                case 'right':
+                    if (dx === 0) { dx = 1; dy = 0; }
+                    break;
+            }
+        }
+
+        // Touch button controls
+        document.getElementById('btnUp').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleDirectionInput('up');
+        });
+        document.getElementById('btnDown').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleDirectionInput('down');
+        });
+        document.getElementById('btnLeft').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleDirectionInput('left');
+        });
+        document.getElementById('btnRight').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleDirectionInput('right');
+        });
+
+        // Mouse support for touch buttons
+        document.getElementById('btnUp').addEventListener('click', () => handleDirectionInput('up'));
+        document.getElementById('btnDown').addEventListener('click', () => handleDirectionInput('down'));
+        document.getElementById('btnLeft').addEventListener('click', () => handleDirectionInput('left'));
+        document.getElementById('btnRight').addEventListener('click', () => handleDirectionInput('right'));
+
+        // Swipe gesture support
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent scrolling
+        });
+
+        document.addEventListener('touchend', (e) => {
+            if (!touchStartX || !touchStartY) return;
+
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+
+            if (Math.abs(deltaX) < touchMinDistance && Math.abs(deltaY) < touchMinDistance) {
+                return; // Too small movement
+            }
+
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // Horizontal swipe
+                if (deltaX > 0) {
+                    handleDirectionInput('right');
+                } else {
+                    handleDirectionInput('left');
+                }
+            } else {
+                // Vertical swipe
+                if (deltaY > 0) {
+                    handleDirectionInput('down');
+                } else {
+                    handleDirectionInput('up');
+                }
+            }
+
+            touchStartX = 0;
+            touchStartY = 0;
+        });
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            // Initialize audio context on first user interaction
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            if (e.key === 'ArrowUp' && dy === 0) {
+                dx = 0;
+                dy = -1;
+            } else if (e.key === 'ArrowDown' && dy === 0) {
+                dx = 0;
+                dy = 1;
+            } else if (e.key === 'ArrowLeft' && dx === 0) {
+                dx = -1;
+                dy = 0;
+            } else if (e.key === 'ArrowRight' && dx === 0) {
+                dx = 1;
+                dy = 0;
+            } else if (e.key === 'r' || e.key === 'R') {
+                resetGame();
+                startGameLoop();
+            } else if (e.key === 'p' || e.key === 'P') {
+                isPaused = !isPaused;
+            } else if (e.key === 'm' || e.key === 'M') {
+                // Toggle background music
+                if (backgroundMusicPlaying) {
+                    stopBackgroundMusic();
+                } else {
+                    startBackgroundMusic();
+                }
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize game
+        setTimeout(() => {
+            loadingElement.style.display = 'none';
+            uiElement.style.display = 'block';
+            controlsElement.style.display = 'block';
+            resetGame();
+            animate();
+            startGameLoop();
+        }, 1500);
+    </script>
+</body>
+</html>

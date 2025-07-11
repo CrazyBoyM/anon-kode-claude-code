@@ -28,6 +28,7 @@ import {
   NormalizedMessage,
   normalizeMessagesForAPI,
 } from './utils/messages.js'
+import { createToolExecutionController } from './utils/toolExecutionController'
 import { BashTool } from './tools/BashTool/BashTool'
 import { getCwd } from './utils/state'
 
@@ -136,7 +137,11 @@ export async function* query(
     m2: AssistantMessage,
   ) => Promise<BinaryFeedbackResult>,
 ): AsyncGenerator<Message, void> {
-  const fullSystemPrompt = formatSystemPromptWithContext(systemPrompt, context)
+  const fullSystemPrompt = formatSystemPromptWithContext(
+    systemPrompt,
+    context,
+    toolUseContext.agentId,
+  )
   function getAssistantResponse() {
     return querySonnet(
       normalizeMessagesForAPI(messages),
@@ -182,13 +187,32 @@ export async function* query(
 
   const toolResults: UserMessage[] = []
 
-  // Prefer to run tools concurrently, if we can
-  // TODO: tighten up the logic -- we can run concurrently much more often than this
-  if (
-    toolUseMessages.every(msg =>
-      toolUseContext.options.tools.find(t => t.name === msg.name)?.isReadOnly(),
-    )
-  ) {
+  // Create tool execution controller
+  const executionController = createToolExecutionController(
+    toolUseContext.options.tools,
+  )
+
+  // Analyze execution plan for optimization
+  const executionPlan =
+    executionController.analyzeExecutionPlan(toolUseMessages)
+
+  // Log execution plan for debugging and optimization insights
+  if (executionPlan.recommendations.length > 0) {
+    logEvent('tool_execution_plan', {
+      totalTools: toolUseMessages.length,
+      concurrentCount: executionPlan.concurrentCount,
+      sequentialCount: executionPlan.sequentialCount,
+      groupCount: executionPlan.groups.length,
+      recommendations: executionPlan.recommendations,
+      toolNames: toolUseMessages.map(t => t.name),
+    })
+  }
+
+  // Use optimized execution based on concurrency safety
+  const canRunConcurrently =
+    executionController.canExecuteConcurrently(toolUseMessages)
+
+  if (canRunConcurrently) {
     for await (const message of runToolsConcurrently(
       toolUseMessages,
       assistantMessage,

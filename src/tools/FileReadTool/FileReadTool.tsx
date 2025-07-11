@@ -17,10 +17,15 @@ import {
 } from '../../utils/file.js'
 import { logError } from '../../utils/log'
 import { getTheme } from '../../utils/theme'
+import { emitReminderEvent } from '../../services/systemReminder'
+import {
+  recordFileRead,
+  generateFileModificationReminder,
+} from '../../services/fileFreshness'
 import { DESCRIPTION, PROMPT } from './prompt'
 import { hasReadPermission } from '../../utils/permissions/filesystem'
 
-const MAX_LINES_TO_RENDER = 3
+const MAX_LINES_TO_RENDER = 5
 const MAX_OUTPUT_SIZE = 0.25 * 1024 * 1024 // 0.25MB in bytes
 
 // Common image extensions
@@ -65,6 +70,9 @@ export const FileReadTool = {
   inputSchema,
   isReadOnly() {
     return true
+  },
+  isConcurrencySafe() {
+    return true // FileRead is read-only, safe for concurrent execution
   },
   userFacingName() {
     return 'Read'
@@ -177,8 +185,28 @@ export const FileReadTool = {
     const ext = path.extname(file_path).toLowerCase()
     const fullFilePath = normalizeFilePath(file_path)
 
+    // Record file read for freshness tracking
+    recordFileRead(fullFilePath)
+
+    // Emit file read event for system reminders
+    emitReminderEvent('file:read', {
+      filePath: fullFilePath,
+      extension: ext,
+      timestamp: Date.now(),
+    })
+
     // Update read timestamp, to invalidate stale writes
     readFileTimestamps[fullFilePath] = Date.now()
+
+    // Check for file modifications and generate reminder if needed
+    const modificationReminder = generateFileModificationReminder(fullFilePath)
+    if (modificationReminder) {
+      emitReminderEvent('file:modified', {
+        filePath: fullFilePath,
+        reminder: modificationReminder,
+        timestamp: Date.now(),
+      })
+    }
 
     // If it's an image file, process and return base64 encoded contents
     if (IMAGE_EXTENSIONS.has(ext)) {

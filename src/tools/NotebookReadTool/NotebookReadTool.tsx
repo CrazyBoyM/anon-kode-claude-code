@@ -68,6 +68,9 @@ export const NotebookReadTool = {
   isReadOnly() {
     return true
   },
+  isConcurrencySafe() {
+    return true // NotebookReadTool is read-only, safe for concurrent execution
+  },
   inputSchema,
   userFacingName() {
     return 'Read Notebook'

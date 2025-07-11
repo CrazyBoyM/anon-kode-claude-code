@@ -420,7 +420,11 @@ export const getMCPTools = memoize(async (): Promise<Tool[]> => {
           return tool.description ?? ''
         },
         inputJSONSchema: tool.inputSchema as Tool['inputJSONSchema'],
-        async *call(args: Record<string, unknown>) {
+        async validateInput(input, context) {
+          // MCP tools handle their own validation through their schemas
+          return { result: true }
+        },
+        async *call(args: Record<string, unknown>, context) {
           const data = await callMCPTool({ client, tool: tool.name, args })
           yield {
             type: 'result' as const,

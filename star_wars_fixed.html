@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Wars - Fixed Version</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            cursor: none;
+        }
+        .ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff00;
+            font-size: 16px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #00ff00;
+        }
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ff0000;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -10px;
+            right: -10px;
+            height: 2px;
+            background: #ff0000;
+            transform: translateY(-50%);
+        }
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: -10px;
+            bottom: -10px;
+            width: 2px;
+            background: #ff0000;
+            transform: translateX(-50%);
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00ff00;
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #00ff00;
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 36px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="crosshair"></div>
+    <div class="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div>Health: <span id="health">100</span></div>
+        <div>Wave: <span id="wave">1</span></div>
+        <div>Enemies: <span id="enemies">0</span></div>
+    </div>
+    <div class="controls">
+        WASD - Move | Mouse - Aim | Click - Shoot | R - Restart
+    </div>
+    <div class="game-over" id="gameOver">
+        <div>Game Over!</div>
+        <div style="font-size: 24px; margin-top: 15px;">Score: <span id="finalScore">0</span></div>
+        <div style="font-size: 18px; margin-top: 15px;">Press R to restart</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Game variables
+        let scene, camera, renderer;
+        let playerShip, crosshair;
+        let enemies = [];
+        let bullets = [];
+        let explosions = [];
+        let stars = [];
+        
+        let score = 0;
+        let health = 100;
+        let wave = 1;
+        let gameRunning = true;
+        
+        // Player movement
+        let moveSpeed = 0.3;
+        let keys = { w: false, a: false, s: false, d: false };
+        let mouse = { x: 0, y: 0 };
+        
+        // Shooting
+        let canShoot = true;
+        let shootDelay = 100;
+
+        // Initialize the game
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000011);
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            // Create player ship
+            createPlayer();
+            
+            // Create stars
+            createStars();
+            
+            // Start the game
+            spawnEnemies();
+            animate();
+            
+            console.log("Game initialized successfully");
+        }
+
+        function createPlayer() {
+            const geometry = new THREE.ConeGeometry(0.3, 1, 8);
+            const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            playerShip = new THREE.Mesh(geometry, material);
+            playerShip.position.set(0, 0, 0);
+            playerShip.rotation.x = Math.PI / 2; // Point forward
+            scene.add(playerShip);
+            
+            // Position camera behind player
+            camera.position.set(0, 5, 8);
+            camera.lookAt(playerShip.position);
+        }
+
+        function createStars() {
+            const starGeometry = new THREE.SphereGeometry(0.02, 4, 4);
+            const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            
+            for (let i = 0; i < 200; i++) {
+                const star = new THREE.Mesh(starGeometry, starMaterial);
+                star.position.set(
+                    (Math.random() - 0.5) * 200,
+                    (Math.random() - 0.5) * 200,
+                    (Math.random() - 0.5) * 200
+                );
+                stars.push(star);
+                scene.add(star);
+            }
+        }
+
+        function spawnEnemies() {
+            const numEnemies = 3 + wave;
+            
+            for (let i = 0; i < numEnemies; i++) {
+                const geometry = new THREE.OctahedronGeometry(0.5);
+                const material = new THREE.MeshLambertMaterial({ color: 0xff4444 });
+                const enemy = new THREE.Mesh(geometry, material);
+                
+                // Random position around player
+                const angle = (i / numEnemies) * Math.PI * 2;
+                const distance = 15 + Math.random() * 10;
+                enemy.position.set(
+                    Math.cos(angle) * distance,
+                    (Math.random() - 0.5) * 8,
+                    Math.sin(angle) * distance
+                );
+                
+                enemy.health = 1;
+                enemy.speed = 0.02 + Math.random() * 0.02;
+                enemies.push(enemy);
+                scene.add(enemy);
+            }
+            
+            updateUI();
+        }
+
+        function shoot() {
+            if (!canShoot || !gameRunning) return;
+            
+            // Create bullet
+            const geometry = new THREE.SphereGeometry(0.05);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const bullet = new THREE.Mesh(geometry, material);
+            
+            bullet.position.copy(playerShip.position);
+            bullet.position.y += 0.5;
+            
+            // Calculate direction from camera
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            bullet.direction = direction;
+            bullet.speed = 0.5;
+            
+            bullets.push(bullet);
+            scene.add(bullet);
+            
+            // Shooting cooldown
+            canShoot = false;
+            setTimeout(() => { canShoot = true; }, shootDelay);
+            
+            // Sound effect
+            playSound(800, 0.1);
+        }
+
+        function updatePlayer() {
+            if (!gameRunning) return;
+            
+            // Movement
+            if (keys.w) playerShip.position.z -= moveSpeed;
+            if (keys.s) playerShip.position.z += moveSpeed;
+            if (keys.a) playerShip.position.x -= moveSpeed;
+            if (keys.d) playerShip.position.x += moveSpeed;
+            
+            // Keep player in bounds
+            playerShip.position.x = Math.max(-15, Math.min(15, playerShip.position.x));
+            playerShip.position.z = Math.max(-15, Math.min(15, playerShip.position.z));
+            
+            // Update camera to follow player
+            camera.position.x = playerShip.position.x;
+            camera.position.z = playerShip.position.z + 8;
+            camera.lookAt(playerShip.position);
+        }
+
+        function updateEnemies() {
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                
+                // Move towards player
+                const direction = new THREE.Vector3();
+                direction.subVectors(playerShip.position, enemy.position);
+                direction.normalize();
+                direction.multiplyScalar(enemy.speed);
+                enemy.position.add(direction);
+                
+                // Rotate enemy
+                enemy.rotation.x += 0.02;
+                enemy.rotation.y += 0.01;
+                
+                // Check if enemy reaches player
+                if (enemy.position.distanceTo(playerShip.position) < 1) {
+                    health -= 20;
+                    createExplosion(enemy.position);
+                    scene.remove(enemy);
+                    enemies.splice(i, 1);
+                    
+                    if (health <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+
+        function updateBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                
+                // Move bullet
+                bullet.position.add(
+                    bullet.direction.clone().multiplyScalar(bullet.speed)
+                );
+                
+                // Remove if too far
+                if (bullet.position.length() > 50) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+                
+                // Check collision with enemies
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    if (bullet.position.distanceTo(enemy.position) < 0.8) {
+                        // Hit!
+                        enemy.health--;
+                        scene.remove(bullet);
+                        bullets.splice(i, 1);
+                        
+                        if (enemy.health <= 0) {
+                            score += 10;
+                            createExplosion(enemy.position);
+                            scene.remove(enemy);
+                            enemies.splice(j, 1);
+                            playSound(200, 0.2);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        function updateExplosions() {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const explosion = explosions[i];
+                explosion.life -= 0.02;
+                explosion.material.opacity = explosion.life;
+                explosion.scale.multiplyScalar(1.05);
+                
+                if (explosion.life <= 0) {
+                    scene.remove(explosion);
+                    explosions.splice(i, 1);
+                }
+            }
+        }
+
+        function createExplosion(position) {
+            for (let i = 0; i < 5; i++) {
+                const geometry = new THREE.SphereGeometry(0.1 + Math.random() * 0.1);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: new THREE.Color().setHSL(Math.random() * 0.1, 1, 0.5),
+                    transparent: true
+                });
+                const particle = new THREE.Mesh(geometry, material);
+                particle.position.copy(position);
+                particle.position.add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                ));
+                particle.life = 1.0;
+                explosions.push(particle);
+                scene.add(particle);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('health').textContent = health;
+            document.getElementById('wave').textContent = wave;
+            document.getElementById('enemies').textContent = enemies.length;
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+            playSound(100, 1.0);
+        }
+
+        function resetGame() {
+            gameRunning = true;
+            score = 0;
+            health = 100;
+            wave = 1;
+            
+            // Clear all objects
+            enemies.forEach(enemy => scene.remove(enemy));
+            enemies = [];
+            
+            bullets.forEach(bullet => scene.remove(bullet));
+            bullets = [];
+            
+            explosions.forEach(explosion => scene.remove(explosion));
+            explosions = [];
+            
+            playerShip.position.set(0, 0, 0);
+            document.getElementById('gameOver').style.display = 'none';
+            
+            spawnEnemies();
+            updateUI();
+        }
+
+        function checkWaveComplete() {
+            if (enemies.length === 0 && gameRunning) {
+                wave++;
+                setTimeout(() => {
+                    spawnEnemies();
+                }, 1000);
+            }
+        }
+
+        // Sound system
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(frequency, duration) {
+            if (!audioContext) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.type = 'square';
+            
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        // Game loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (gameRunning) {
+                updatePlayer();
+                updateEnemies();
+                updateBullets();
+                updateExplosions();
+                checkWaveComplete();
+                updateUI();
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', (event) => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            const key = event.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = true;
+            }
+            
+            if (key === 'r') {
+                resetGame();
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            const key = event.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = false;
+            }
+        });
+
+        document.addEventListener('mousedown', (event) => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            shoot();
+        });
+
+        document.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start the game
+        init();
+    </script>
+</body>
+</html>

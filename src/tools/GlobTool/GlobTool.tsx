@@ -42,6 +42,9 @@ export const GlobTool = {
   isReadOnly() {
     return true
   },
+  isConcurrencySafe() {
+    return true // GlobTool is read-only, safe for concurrent execution
+  },
   needsPermissions({ path }) {
     return !hasReadPermission(path || getCwd())
   },

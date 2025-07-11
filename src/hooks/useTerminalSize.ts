@@ -1,22 +1,47 @@
 import { useEffect, useState } from 'react'
 
-export function useTerminalSize() {
-  const [size, setSize] = useState({
+// Global state to share across all hook instances
+let globalSize = {
+  columns: process.stdout.columns || 80,
+  rows: process.stdout.rows || 24,
+}
+
+const listeners = new Set<() => void>()
+let isListenerAttached = false
+
+function updateAllListeners() {
+  globalSize = {
     columns: process.stdout.columns || 80,
     rows: process.stdout.rows || 24,
-  })
+  }
+  listeners.forEach(listener => listener())
+}
+
+export function useTerminalSize() {
+  const [size, setSize] = useState(globalSize)
 
   useEffect(() => {
-    function updateSize() {
-      setSize({
-        columns: process.stdout.columns || 80,
-        rows: process.stdout.rows || 24,
-      })
+    // Add this component's listener to the set
+    const updateSize = () => setSize({ ...globalSize })
+    listeners.add(updateSize)
+
+    // Only attach the global resize listener once
+    if (!isListenerAttached) {
+      // Increase max listeners to prevent warnings
+      process.stdout.setMaxListeners(20)
+      process.stdout.on('resize', updateAllListeners)
+      isListenerAttached = true
     }
 
-    process.stdout.on('resize', updateSize)
     return () => {
-      process.stdout.off('resize', updateSize)
+      // Remove this component's listener
+      listeners.delete(updateSize)
+
+      // If no more listeners, remove the global listener
+      if (listeners.size === 0 && isListenerAttached) {
+        process.stdout.off('resize', updateAllListeners)
+        isListenerAttached = false
+      }
     }
   }, [])
 

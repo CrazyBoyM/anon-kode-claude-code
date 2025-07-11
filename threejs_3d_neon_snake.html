@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 3D 霓虹蛇游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff00;
+            font-size: 20px;
+            text-shadow: 0 0 10px #00ff00;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #00ff00;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0040;
+            font-size: 48px;
+            text-shadow: 0 0 20px #ff0040;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #ff0040;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00ffff;
+            font-size: 14px;
+            text-shadow: 0 0 10px #00ffff;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #00ffff;
+        }
+        
+        #camera-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #ffff00;
+            font-size: 14px;
+            text-shadow: 0 0 10px #ffff00;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div>分数: <span id="score">0</span></div>
+            <div>长度: <span id="length">1</span></div>
+            <div>坐标: <span id="position">0,0,0</span></div>
+        </div>
+        <div id="gameOver">
+            <div>游戏结束!</div>
+            <div style="font-size: 24px; margin-top: 20px;">按 R 键重新开始</div>
+        </div>
+        <div id="instructions">
+            <div><strong>3D 移动控制:</strong></div>
+            <div>W/S: 前后移动</div>
+            <div>A/D: 左右移动</div>
+            <div>空格/Shift: 上下移动</div>
+            <div>P: 暂停/继续</div>
+        </div>
+        <div id="camera-controls">
+            <div><strong>相机控制:</strong></div>
+            <div>鼠标拖拽: 旋转视角</div>
+            <div>滚轮: 缩放</div>
+            <div>C: 切换跟随模式</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js"></script>
+    
+    <script>
+        // 游戏变量
+        let scene, camera, renderer, clock, controls;
+        let snake = [];
+        let food;
+        let direction = new THREE.Vector3(1, 0, 0);
+        let nextDirection = new THREE.Vector3(1, 0, 0);
+        let gameRunning = true;
+        let gamePaused = false;
+        let score = 0;
+        let moveTimer = 0;
+        let moveInterval = 0.3;
+        let cameraFollowMode = true;
+        
+        // 3D游戏参数
+        const GRID_SIZE = 20;
+        const BOARD_SIZE = 20;
+        const SNAKE_SIZE = 0.8;
+        const HALF_BOARD = BOARD_SIZE / 2;
+        
+        // 粒子系统
+        let particleSystem;
+        
+        // 初始化游戏
+        function init() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000015);
+            scene.fog = new THREE.Fog(0x000015, 30, 100);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(25, 25, 25);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.setClearColor(0x000015);
+            document.getElementById('gameContainer').appendChild(renderer.domElement);
+            
+            // 创建轨道控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.1;
+            controls.enableZoom = true;
+            controls.enablePan = false;
+            controls.maxDistance = 80;
+            controls.minDistance = 10;
+            
+            // 创建时钟
+            clock = new THREE.Clock();
+            
+            // 设置光照
+            setupLighting();
+            
+            // 创建3D游戏场地
+            create3DGameBoard();
+            
+            // 创建粒子系统
+            createParticleSystem();
+            
+            // 初始化蛇
+            initSnake();
+            
+            // 创建食物
+            createFood();
+            
+            // 添加事件监听器
+            setupControls();
+            
+            // 开始游戏循环
+            animate();
+        }
+        
+        // 设置光照
+        function setupLighting() {
+            // 环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            // 主光源
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(20, 30, 20);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 100;
+            directionalLight.shadow.camera.left = -30;
+            directionalLight.shadow.camera.right = 30;
+            directionalLight.shadow.camera.top = 30;
+            directionalLight.shadow.camera.bottom = -30;
+            scene.add(directionalLight);
+            
+            // 补充光源
+            const pointLight1 = new THREE.PointLight(0x00ff00, 1, 50);
+            pointLight1.position.set(10, 10, 10);
+            scene.add(pointLight1);
+            
+            const pointLight2 = new THREE.PointLight(0xff0040, 1, 50);
+            pointLight2.position.set(-10, 10, -10);
+            scene.add(pointLight2);
+        }
+        
+        // 创建3D游戏场地
+        function create3DGameBoard() {
+            // 创建透明边界立方体
+            const boundaryGeometry = new THREE.BoxGeometry(BOARD_SIZE, BOARD_SIZE, BOARD_SIZE);
+            const boundaryMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.DoubleSide
+            });
+            
+            const boundaryBox = new THREE.Mesh(boundaryGeometry, boundaryMaterial);
+            scene.add(boundaryBox);
+            
+            // 创建边界线框
+            const edgesGeometry = new THREE.EdgesGeometry(boundaryGeometry);
+            const edgesMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.8
+            });
+            const wireframe = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+            scene.add(wireframe);
+            
+            // 创建网格参考线
+            createGridLines();
+        }
+        
+        // 创建网格参考线
+        function createGridLines() {
+            const gridMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x333333,
+                transparent: true,
+                opacity: 0.3
+            });
+            
+            // XY平面网格
+            for (let i = -HALF_BOARD; i <= HALF_BOARD; i += 2) {
+                // 垂直线
+                const vGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(i, -HALF_BOARD, 0),
+                    new THREE.Vector3(i, HALF_BOARD, 0)
+                ]);
+                const vLine = new THREE.Line(vGeometry, gridMaterial);
+                scene.add(vLine);
+                
+                // 水平线
+                const hGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-HALF_BOARD, i, 0),
+                    new THREE.Vector3(HALF_BOARD, i, 0)
+                ]);
+                const hLine = new THREE.Line(hGeometry, gridMaterial);
+                scene.add(hLine);
+            }
+        }
+        
+        // 创建粒子系统
+        function createParticleSystem() {
+            const particleCount = 200;
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * BOARD_SIZE * 2;
+                positions[i + 1] = (Math.random() - 0.5) * BOARD_SIZE * 2;
+                positions[i + 2] = (Math.random() - 0.5) * BOARD_SIZE * 2;
+                
+                colors[i] = 0;
+                colors[i + 1] = Math.random() * 0.5 + 0.5;
+                colors[i + 2] = Math.random() * 0.5 + 0.5;
+            }
+            
+            const particleGeometry = new THREE.BufferGeometry();
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.5,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending
+            });
+            
+            particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+            scene.add(particleSystem);
+        }
+        
+        // 初始化蛇
+        function initSnake() {
+            snake = [];
+            const startX = 0;
+            const startY = 0;
+            const startZ = 0;
+            
+            // 创建蛇头
+            const headGeometry = new THREE.BoxGeometry(SNAKE_SIZE, SNAKE_SIZE, SNAKE_SIZE);
+            const headMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x00ff00,
+                emissive: 0x004400,
+                shininess: 100
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.set(startX, startY, startZ);
+            head.castShadow = true;
+            
+            // 添加头部的霓虹效果
+            const headGlow = new THREE.PointLight(0x00ff00, 3, 8);
+            headGlow.position.copy(head.position);
+            scene.add(headGlow);
+            
+            snake.push({ 
+                mesh: head, 
+                light: headGlow,
+                position: new THREE.Vector3(startX, startY, startZ)
+            });
+            scene.add(head);
+        }
+        
+        // 创建蛇身体节点
+        function createSnakeSegment(x, y, z) {
+            const geometry = new THREE.BoxGeometry(SNAKE_SIZE * 0.9, SNAKE_SIZE * 0.9, SNAKE_SIZE * 0.9);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0x00cc00,
+                emissive: 0x003300,
+                shininess: 80
+            });
+            const segment = new THREE.Mesh(geometry, material);
+            segment.position.set(x, y, z);
+            segment.castShadow = true;
+            
+            // 添加身体的霓虹效果
+            const segmentGlow = new THREE.PointLight(0x00cc00, 2, 6);
+            segmentGlow.position.copy(segment.position);
+            scene.add(segmentGlow);
+            
+            return {
+                mesh: segment,
+                light: segmentGlow,
+                position: new THREE.Vector3(x, y, z)
+            };
+        }
+        
+        // 创建食物
+        function createFood() {
+            let foodX, foodY, foodZ;
+            
+            // 确保食物不生成在蛇身上
+            do {
+                foodX = Math.floor(Math.random() * BOARD_SIZE - HALF_BOARD);
+                foodY = Math.floor(Math.random() * BOARD_SIZE - HALF_BOARD);
+                foodZ = Math.floor(Math.random() * BOARD_SIZE - HALF_BOARD);
+            } while (isSnakePosition(foodX, foodY, foodZ));
+            
+            if (food) {
+                scene.remove(food.mesh);
+                scene.remove(food.light);
+            }
+            
+            const foodGeometry = new THREE.SphereGeometry(SNAKE_SIZE * 0.5, 12, 12);
+            const foodMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xff0040,
+                emissive: 0x440010,
+                shininess: 200
+            });
+            const foodMesh = new THREE.Mesh(foodGeometry, foodMaterial);
+            foodMesh.position.set(foodX, foodY, foodZ);
+            foodMesh.castShadow = true;
+            
+            // 添加食物的霓虹效果
+            const foodGlow = new THREE.PointLight(0xff0040, 4, 10);
+            foodGlow.position.copy(foodMesh.position);
+            scene.add(foodGlow);
+            
+            food = {
+                mesh: foodMesh,
+                light: foodGlow,
+                position: new THREE.Vector3(foodX, foodY, foodZ)
+            };
+            
+            scene.add(foodMesh);
+        }
+        
+        // 检查位置是否被蛇占据
+        function isSnakePosition(x, y, z) {
+            return snake.some(segment => 
+                segment.position.x === x && 
+                segment.position.y === y && 
+                segment.position.z === z
+            );
+        }
+        
+        // 移动蛇
+        function moveSnake() {
+            if (!gameRunning || gamePaused) return;
+            
+            // 更新方向
+            direction.copy(nextDirection);
+            
+            // 计算新的头部位置
+            const head = snake[0];
+            const newX = head.position.x + direction.x;
+            const newY = head.position.y + direction.y;
+            const newZ = head.position.z + direction.z;
+            
+            // 检查边界碰撞（3D边界）
+            if (newX < -HALF_BOARD || newX >= HALF_BOARD || 
+                newY < -HALF_BOARD || newY >= HALF_BOARD ||
+                newZ < -HALF_BOARD || newZ >= HALF_BOARD) {
+                gameOver();
+                return;
+            }
+            
+            // 检查自身碰撞
+            if (isSnakePosition(newX, newY, newZ)) {
+                gameOver();
+                return;
+            }
+            
+            // 移动蛇身
+            for (let i = snake.length - 1; i > 0; i--) {
+                snake[i].position.copy(snake[i-1].position);
+                snake[i].mesh.position.copy(snake[i].position);
+                snake[i].light.position.copy(snake[i].position);
+            }
+            
+            // 移动头部
+            head.position.set(newX, newY, newZ);
+            head.mesh.position.copy(head.position);
+            head.light.position.copy(head.position);
+            
+            // 更新UI位置显示
+            document.getElementById('position').textContent = `${newX},${newY},${newZ}`;
+            
+            // 检查是否吃到食物
+            if (newX === food.position.x && newY === food.position.y && newZ === food.position.z) {
+                eatFood();
+            }
+            
+            // 更新相机跟随
+            if (cameraFollowMode) {
+                updateCameraFollow();
+            }
+        }
+        
+        // 更新相机跟随
+        function updateCameraFollow() {
+            const head = snake[0];
+            const targetPosition = head.position.clone().add(new THREE.Vector3(15, 15, 15));
+            
+            camera.position.lerp(targetPosition, 0.05);
+            controls.target.lerp(head.position, 0.05);
+            controls.update();
+        }
+        
+        // 吃到食物
+        function eatFood() {
+            score += 10;
+            document.getElementById('score').textContent = score;
+            
+            // 添加蛇身节点
+            const tail = snake[snake.length - 1];
+            const newSegment = createSnakeSegment(
+                tail.position.x, 
+                tail.position.y, 
+                tail.position.z
+            );
+            snake.push(newSegment);
+            scene.add(newSegment.mesh);
+            
+            document.getElementById('length').textContent = snake.length;
+            
+            // 创建新食物
+            createFood();
+            
+            // 增加移动速度
+            moveInterval = Math.max(0.1, moveInterval - 0.01);
+        }
+        
+        // 游戏结束
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            gameRunning = true;
+            gamePaused = false;
+            score = 0;
+            moveInterval = 0.3;
+            direction.set(1, 0, 0);
+            nextDirection.set(1, 0, 0);
+            
+            // 清理旧的蛇
+            snake.forEach(segment => {
+                scene.remove(segment.mesh);
+                scene.remove(segment.light);
+            });
+            
+            // 清理食物
+            if (food) {
+                scene.remove(food.mesh);
+                scene.remove(food.light);
+            }
+            
+            // 重新初始化
+            initSnake();
+            createFood();
+            
+            // 更新UI
+            document.getElementById('score').textContent = score;
+            document.getElementById('length').textContent = snake.length;
+            document.getElementById('position').textContent = '0,0,0';
+            document.getElementById('gameOver').style.display = 'none';
+        }
+        
+        // 设置控制
+        function setupControls() {
+            document.addEventListener('keydown', (event) => {
+                if (!gameRunning && event.key.toLowerCase() === 'r') {
+                    restartGame();
+                    return;
+                }
+                
+                if (!gameRunning) return;
+                
+                switch(event.key.toLowerCase()) {
+                    case 'w':
+                        // 前进（-Z方向）
+                        if (direction.z !== 1) nextDirection.set(0, 0, -1);
+                        break;
+                    case 's':
+                        // 后退（+Z方向）
+                        if (direction.z !== -1) nextDirection.set(0, 0, 1);
+                        break;
+                    case 'a':
+                        // 左移（-X方向）
+                        if (direction.x !== 1) nextDirection.set(-1, 0, 0);
+                        break;
+                    case 'd':
+                        // 右移（+X方向）
+                        if (direction.x !== -1) nextDirection.set(1, 0, 0);
+                        break;
+                    case ' ':
+                        // 上升（+Y方向）
+                        event.preventDefault();
+                        if (direction.y !== -1) nextDirection.set(0, 1, 0);
+                        break;
+                    case 'shift':
+                        // 下降（-Y方向）
+                        if (direction.y !== 1) nextDirection.set(0, -1, 0);
+                        break;
+                    case 'p':
+                        // 暂停/继续
+                        gamePaused = !gamePaused;
+                        break;
+                    case 'c':
+                        // 切换相机跟随模式
+                        cameraFollowMode = !cameraFollowMode;
+                        break;
+                }
+            });
+            
+            // 窗口大小调整
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            // 更新移动计时器
+            if (gameRunning && !gamePaused) {
+                moveTimer += deltaTime;
+                if (moveTimer >= moveInterval) {
+                    moveSnake();
+                    moveTimer = 0;
+                }
+            }
+            
+            // 更新控制器
+            controls.update();
+            
+            // 粒子系统动画
+            if (particleSystem) {
+                particleSystem.rotation.y += deltaTime * 0.1;
+                particleSystem.rotation.x += deltaTime * 0.05;
+            }
+            
+            // 食物动画
+            if (food) {
+                food.mesh.rotation.y += deltaTime * 2;
+                food.mesh.rotation.x += deltaTime * 1.5;
+                food.light.intensity = 3 + Math.sin(Date.now() * 0.01) * 1;
+            }
+            
+            // 蛇的霓虹效果闪烁
+            snake.forEach((segment, index) => {
+                const time = Date.now() * 0.01;
+                segment.light.intensity = (index === 0 ? 3 : 2) + Math.sin(time + index * 0.5) * 0.5;
+                
+                // 蛇头额外旋转效果
+                if (index === 0) {
+                    segment.mesh.rotation.y += deltaTime * 2;
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+        
+        // 启动游戏
+        init();
+    </script>
+</body>
+</html>

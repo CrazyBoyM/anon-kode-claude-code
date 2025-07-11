@@ -20,6 +20,7 @@ export const ThinkTool = {
   isEnabled: async () =>
     Boolean(process.env.THINK_TOOL) && (await checkGate('tengu_think_tool')),
   isReadOnly: () => true,
+  isConcurrencySafe: () => true, // ThinkTool is read-only, safe for concurrent execution
   needsPermissions: () => false,
   prompt: async () => PROMPT,
 
