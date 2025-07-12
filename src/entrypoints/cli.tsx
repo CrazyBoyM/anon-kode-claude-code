@@ -1174,7 +1174,7 @@ ${commandList}`,
     process.exit(0)
   }
 
-  // New command name to match Claude Code
+  // New command name to match Any kode
   mcp
     .command('reset-project-choices')
     .description(
