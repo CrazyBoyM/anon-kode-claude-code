@@ -9,6 +9,28 @@ import {
 import { ProxyAgent, fetch, Response } from 'undici'
 import { setSessionState, getSessionState } from '../utils/sessionState'
 import { logEvent } from '../services/statsig'
+import chalk from 'chalk'
+
+// Helper function to calculate retry delay with exponential backoff
+function getRetryDelay(attempt: number, retryAfter?: string | null): number {
+  // If server suggests a retry-after time, use it
+  if (retryAfter) {
+    const retryAfterMs = parseInt(retryAfter) * 1000
+    if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
+      return Math.min(retryAfterMs, 60000) // Cap at 60 seconds
+    }
+  }
+
+  // Exponential backoff: base delay of 1 second, doubling each attempt
+  const baseDelay = 1000
+  const maxDelay = 32000 // Cap at 32 seconds
+  const delay = baseDelay * Math.pow(2, attempt - 1)
+
+  // Add some jitter to avoid thundering herd
+  const jitter = Math.random() * 0.1 * delay
+
+  return Math.min(delay + jitter, maxDelay)
+}
 
 enum ModelErrorType {
   MaxLength = '1024',
@@ -299,6 +321,19 @@ async function handleApiError(
       const apiKey = getActiveApiKey(config, type, false)
       if (apiKey) {
         markApiKeyAsFailed(apiKey, type)
+
+        // Add delay before retrying with next key if this isn't the first attempt
+        if (attempt > 1) {
+          const delayMs = getRetryDelay(
+            attempt,
+            response?.headers?.get('retry-after'),
+          )
+          console.log(
+            `  ⎿  ${chalk.red(`API authentication error, switching API key... (retrying in ${Math.round(delayMs / 1000)}s, attempt ${attempt}/${maxAttempts})`)}`,
+          )
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
+
         // Try with next key
         return getCompletion(type, opts, attempt + 1, maxAttempts)
       }
@@ -306,10 +341,57 @@ async function handleApiError(
 
     // Check for rate limiting
     if (isRateLimitError(errMsg)) {
+      const delayMs = getRetryDelay(
+        attempt,
+        response?.headers?.get('retry-after'),
+      )
+
+      console.log(
+        `  ⎿  ${chalk.red(`API rate limited, retrying in ${Math.round(delayMs / 1000)}s... (attempt ${attempt}/${maxAttempts})`)}`,
+      )
+
       logEvent('rate_limit_error', {
         error_message: errMsg,
+        attempt: String(attempt),
+        delayMs: String(delayMs),
       })
-      return handleRateLimit(opts, response, type, config, attempt, maxAttempts)
+
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+      return getCompletion(type, opts, attempt + 1, maxAttempts)
+    }
+
+    // Check for server errors (5xx) that should be retried
+    const isServerError = response.status >= 500 && response.status < 600
+    const isRetryableError =
+      isServerError ||
+      response.status === 408 || // Request Timeout
+      response.status === 409 || // Conflict
+      response.status === 429 || // Too Many Requests
+      errMsg.toLowerCase().includes('internal server error') ||
+      errMsg.toLowerCase().includes('bad gateway') ||
+      errMsg.toLowerCase().includes('service unavailable') ||
+      errMsg.toLowerCase().includes('gateway timeout')
+
+    if (isRetryableError && attempt < maxAttempts) {
+      const delayMs = getRetryDelay(
+        attempt,
+        response?.headers?.get('retry-after'),
+      )
+
+      console.log(
+        `  ⎿  ${chalk.red(`API server error (${response.status}${response.statusText ? ' ' + response.statusText : ''}), retrying in ${Math.round(delayMs / 1000)}s... (attempt ${attempt}/${maxAttempts})`)}`,
+      )
+
+      logEvent('api_retry', {
+        model: opts.model,
+        status: String(response.status),
+        attempt: String(attempt),
+        delayMs: String(delayMs),
+        error: errMsg,
+      })
+
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+      return getCompletion(type, opts, attempt + 1, maxAttempts)
     }
 
     // Handle other errors
@@ -323,10 +405,22 @@ async function handleApiError(
           error: handler.type,
           error_message: errMsg,
         })
-        setSessionState(
-          'currentError',
-          `(${attempt} / ${maxAttempts}) Error: ${handler.type}. Retrying...`,
-        )
+
+        if (attempt < maxAttempts) {
+          const delayMs = getRetryDelay(attempt)
+
+          console.log(
+            `  ⎿  ${chalk.red(`Model error (${handler.type}), retrying in ${Math.round(delayMs / 1000)}s... (attempt ${attempt}/${maxAttempts})`)}`,
+          )
+
+          setSessionState(
+            'currentError',
+            `(${attempt} / ${maxAttempts}) Error: ${handler.type}. Retrying in ${Math.round(delayMs / 1000)}s...`,
+          )
+
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
+
         setModelError(baseURL, opts.model, handler.type, errMsg)
         return getCompletion(type, opts, attempt + 1, maxAttempts)
       }
@@ -338,18 +432,126 @@ async function handleApiError(
     model: opts.model,
     error: errMsg,
     error_message: errMsg,
+    status: response?.status?.toString(),
+    endpoint:
+      type === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL,
   })
 
-  throw new Error(
-    `API request failed: ${error.error?.message || JSON.stringify(error)}`,
-  )
+  // Build detailed error message with context
+  const baseURL =
+    type === 'large' ? config.largeModelBaseURL : config.smallModelBaseURL
+  const provider =
+    type === 'large' ? config.primaryProvider : config.secondaryProvider
+
+  const errorDetails = {
+    provider: provider || 'unknown',
+    model: opts.model,
+    endpoint: baseURL,
+    status: response?.status,
+    statusText: response?.statusText,
+    attempt: attempt,
+    maxAttempts: maxAttempts,
+    originalError: error.error?.message || error.message || error,
+    requestId:
+      response?.headers?.get('x-request-id') ||
+      response?.headers?.get('request-id'),
+    retryAfter: response?.headers?.get('retry-after'),
+  }
+
+  // Create detailed error message
+  let detailedErrorMsg = `API request failed (${errorDetails.provider})`
+
+  if (errorDetails.status) {
+    detailedErrorMsg += ` - HTTP ${errorDetails.status}`
+    if (errorDetails.statusText) {
+      detailedErrorMsg += ` ${errorDetails.statusText}`
+    }
+  }
+
+  detailedErrorMsg += `\nModel: ${errorDetails.model}`
+  detailedErrorMsg += `\nEndpoint: ${errorDetails.endpoint || 'unknown'}`
+
+  if (
+    errorDetails.originalError &&
+    typeof errorDetails.originalError === 'string'
+  ) {
+    detailedErrorMsg += `\nError details: ${errorDetails.originalError}`
+  }
+
+  if (errorDetails.requestId) {
+    detailedErrorMsg += `\nRequest ID: ${errorDetails.requestId}`
+  }
+
+  if (errorDetails.retryAfter) {
+    detailedErrorMsg += `\nSuggested retry after: ${errorDetails.retryAfter} seconds`
+  }
+
+  detailedErrorMsg += `\nRetry attempt: ${errorDetails.attempt}/${errorDetails.maxAttempts}`
+
+  throw new Error(detailedErrorMsg)
+}
+
+// Helper function to try different endpoints for OpenAI-compatible providers
+async function tryWithEndpointFallback(
+  baseURL: string,
+  opts: OpenAI.ChatCompletionCreateParams,
+  headers: Record<string, string>,
+  provider: string,
+  proxy: any,
+): Promise<{ response: Response; endpoint: string }> {
+  const endpointsToTry = []
+
+  if (provider === 'minimax') {
+    endpointsToTry.push('/text/chatcompletion_v2', '/chat/completions')
+  } else {
+    endpointsToTry.push('/chat/completions')
+  }
+
+  let lastError = null
+
+  for (const endpoint of endpointsToTry) {
+    try {
+      const response = await fetch(`${baseURL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(opts.stream ? { ...opts, stream: true } : opts),
+        dispatcher: proxy,
+      })
+
+      // If successful, return immediately
+      if (response.ok) {
+        return { response, endpoint }
+      }
+
+      // If it's a 404, try the next endpoint
+      if (response.status === 404 && endpointsToTry.length > 1) {
+        console.log(
+          `Endpoint ${endpoint} returned 404, trying next endpoint...`,
+        )
+        continue
+      }
+
+      // For other error codes, return this response (don't try fallback)
+      return { response, endpoint }
+    } catch (error) {
+      lastError = error
+      // Network errors might be temporary, try next endpoint
+      if (endpointsToTry.indexOf(endpoint) < endpointsToTry.length - 1) {
+        console.log(`Network error on ${endpoint}, trying next endpoint...`)
+        continue
+      }
+    }
+  }
+
+  // If we get here, all endpoints failed
+  throw lastError || new Error('All endpoints failed')
 }
 
 export async function getCompletion(
   type: 'large' | 'small',
   opts: OpenAI.ChatCompletionCreateParams,
   attempt: number = 0,
-  maxAttempts: number = 5,
+  maxAttempts: number = 10, // 增加到10次重试
 ): Promise<OpenAI.ChatCompletion | AsyncIterable<OpenAI.ChatCompletionChunk>> {
   const config = getGlobalConfig()
   const failedKeys = getSessionState('failedApiKeys')[type]
@@ -387,9 +589,16 @@ export async function getCompletion(
 
   // Define Azure-specific API endpoint with version
   const azureApiVersion = '2024-06-01'
-  const endpoint = isAzure
-    ? `/chat/completions?api-version=${azureApiVersion}`
-    : '/chat/completions'
+
+  // Auto-detect the best endpoint for OpenAI-compatible providers
+  let endpoint = '/chat/completions' // default
+
+  if (isAzure) {
+    endpoint = `/chat/completions?api-version=${azureApiVersion}`
+  } else if (provider === 'minimax') {
+    // For MiniMax, try v2 first, then fallback to v1
+    endpoint = '/text/chatcompletion_v2'
+  }
 
   // Set up headers based on provider
   const headers: Record<string, string> = {
@@ -428,6 +637,26 @@ export async function getCompletion(
     ),
   })
   opts = structuredClone(opts)
+
+  // DEBUG: Log MiniMax request payload for debugging
+  if (provider === 'minimax') {
+    console.log(
+      '[DEBUG] MiniMax API Request:',
+      JSON.stringify(
+        {
+          baseURL,
+          model: opts.model,
+          messages: opts.messages,
+          max_tokens: opts.max_tokens,
+          temperature: opts.temperature,
+          stream: opts.stream,
+        },
+        null,
+        2,
+      ),
+    )
+    console.log('[DEBUG] Headers:', JSON.stringify(headers, null, 2))
+  }
 
   // Apply model-specific parameter transformations (e.g. max_tokens → max_completion_tokens for o1/o3 models)
   applyModelSpecificTransformations(opts)
@@ -520,12 +749,44 @@ export async function getCompletion(
 
   try {
     if (opts.stream) {
-      const response = await fetch(`${baseURL}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ...opts, stream: true }),
-        dispatcher: proxy,
-      })
+      // Use the endpoint fallback for OpenAI-compatible providers
+      const isOpenAICompatible = [
+        'minimax',
+        'kimi',
+        'deepseek',
+        'siliconflow',
+        'qwen',
+        'glm',
+        'baidu-qianfan',
+        'openai',
+        'mistral',
+        'xai',
+        'groq',
+        'custom-openai',
+      ].includes(provider)
+
+      let response: Response
+      let usedEndpoint: string
+
+      if (isOpenAICompatible && !isAzure) {
+        const result = await tryWithEndpointFallback(
+          baseURL,
+          opts,
+          headers,
+          provider,
+          proxy,
+        )
+        response = result.response
+        usedEndpoint = result.endpoint
+      } else {
+        response = await fetch(`${baseURL}${endpoint}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ...opts, stream: true }),
+          dispatcher: proxy,
+        })
+        usedEndpoint = endpoint
+      }
 
       if (!response.ok) {
         try {
@@ -558,6 +819,18 @@ export async function getCompletion(
             maxAttempts,
           )
         }
+      }
+
+      // DEBUG: Log streaming response for MiniMax
+      if (provider === 'minimax') {
+        console.log(
+          '[DEBUG] MiniMax streaming response status:',
+          response.status,
+        )
+        console.log(
+          '[DEBUG] MiniMax streaming response headers:',
+          Object.fromEntries(response.headers.entries()),
+        )
       }
 
       // Only reset failed keys if this key was previously marked as failed
@@ -634,12 +907,44 @@ export async function getCompletion(
       })()
     }
 
-    const response = await fetch(`${baseURL}${endpoint}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(opts),
-      dispatcher: proxy,
-    })
+    // Use the endpoint fallback for OpenAI-compatible providers
+    const isOpenAICompatible = [
+      'minimax',
+      'kimi',
+      'deepseek',
+      'siliconflow',
+      'qwen',
+      'glm',
+      'baidu-qianfan',
+      'openai',
+      'mistral',
+      'xai',
+      'groq',
+      'custom-openai',
+    ].includes(provider)
+
+    let response: Response
+    let usedEndpoint: string
+
+    if (isOpenAICompatible && !isAzure) {
+      const result = await tryWithEndpointFallback(
+        baseURL,
+        opts,
+        headers,
+        provider,
+        proxy,
+      )
+      response = result.response
+      usedEndpoint = result.endpoint
+    } else {
+      response = await fetch(`${baseURL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(opts),
+        dispatcher: proxy,
+      })
+      usedEndpoint = endpoint
+    }
 
     logEvent('response.ok', {
       ok: String(response.ok),
@@ -682,6 +987,82 @@ export async function getCompletion(
 
     // Get the raw response data and check for errors even in OK responses
     const responseData = (await response.json()) as OpenAI.ChatCompletion
+
+    // DEBUG: Log MiniMax response for debugging
+    if (provider === 'minimax') {
+      console.log(
+        '[DEBUG] MiniMax API Response:',
+        JSON.stringify(responseData, null, 2),
+      )
+      console.log('[DEBUG] Response keys:', Object.keys(responseData || {}))
+      if (responseData?.choices) {
+        console.log(
+          '[DEBUG] Choices:',
+          JSON.stringify(responseData.choices, null, 2),
+        )
+      }
+    }
+
+    // Handle MiniMax-specific response format conversion
+    if (provider === 'minimax' && responseData) {
+      // MiniMax might use different field names, try to normalize
+      const normalizedResponse = { ...responseData }
+
+      // Check if MiniMax returns different field names
+      if ('reply' in responseData && !responseData.choices) {
+        normalizedResponse.choices = [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: (responseData as any).reply || '',
+            },
+            finish_reason: 'stop',
+          },
+        ]
+      }
+
+      // Check if MiniMax returns 'output' instead of choices
+      if ('output' in responseData && !responseData.choices) {
+        const output = (responseData as any).output
+        normalizedResponse.choices = [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: output?.text || output || '',
+            },
+            finish_reason: 'stop',
+          },
+        ]
+      }
+
+      // Ensure we have proper OpenAI format
+      if (
+        !normalizedResponse.choices ||
+        normalizedResponse.choices.length === 0
+      ) {
+        console.log(
+          '[DEBUG] MiniMax: No choices found, creating empty response',
+        )
+        normalizedResponse.choices = [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '',
+            },
+            finish_reason: 'stop',
+          },
+        ]
+      }
+
+      console.log(
+        '[DEBUG] MiniMax normalized response:',
+        JSON.stringify(normalizedResponse, null, 2),
+      )
+      return normalizedResponse as OpenAI.ChatCompletion
+    }
 
     // Check for error property in the successful response
     if (
@@ -830,7 +1211,12 @@ export async function fetchCustomModels(
   apiKey: string,
 ): Promise<any[]> {
   try {
-    const modelsURL = `${baseURL.replace(/\/+$/, '')}/models`
+    // Check if baseURL already contains version number (e.g., v1, v2, etc.)
+    const hasVersionNumber = /\/v\d+/.test(baseURL)
+    const cleanBaseURL = baseURL.replace(/\/+$/, '')
+    const modelsURL = hasVersionNumber
+      ? `${cleanBaseURL}/models`
+      : `${cleanBaseURL}/v1/models`
 
     const response = await fetch(modelsURL, {
       method: 'GET',

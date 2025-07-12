@@ -238,7 +238,7 @@ export const NotebookEditTool = {
         cellType: cell_type,
         editMode: edit_mode || 'replace',
         timestamp: Date.now(),
-        operation: 'notebook_edit'
+        operation: 'notebook_edit',
       })
       const data = {
         cell_number,

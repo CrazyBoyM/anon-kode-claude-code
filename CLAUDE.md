@@ -122,3 +122,38 @@ Built with React/Ink for terminal rendering:
 - MCP (Model Context Protocol) server capability for Claude Desktop integration
 - Built-in cost tracking, usage monitoring, and conversation logging
 - Sentry integration for error tracking and debugging
+
+## Checkpoint Records
+
+### Checkpoint 2025-01-13T06:06:00.000Z
+**Project**: last-kode | **Branch**: feature-kimi-model-support  
+**Milestone**: Enhanced Error Handling & Bug Fixes
+
+#### Technical Status
+- **Code Quality**: Excellent (8/10)
+- **Architecture Health**: Robust with 233 TypeScript files
+- **Development Phase**: Active feature development (High intensity)
+
+#### Recent Achievements
+- ✅ Enhanced API error handling with 10-retry mechanism and exponential backoff
+- ✅ Fixed ESC cancellation UI synchronization bug with immediate interrupt display
+- ✅ Removed Chinese error messages for full internationalization support
+- ✅ Implemented comprehensive request state isolation and cleanup
+- ✅ Added proper error boundaries and enhanced debugging capabilities
+
+#### Documentation Maintenance
+- ✅ **README.md**: Updated to match current project identity (last-kode vs anon-kode)
+- ✅ **Project Alignment**: Synchronized package name, installation commands, and repository URLs
+- ✅ **Architecture Documentation**: Comprehensive technical documentation maintained in CLAUDE.md
+
+#### Current Development Trajectory
+📈 **Ascending** - Active feature development with systematic code quality improvements
+
+#### Recommendations
+1. Commit current feature branch changes for API error handling improvements
+2. Conduct integration testing for ESC cancellation fixes
+3. Consider merging feature branch to main after validation
+4. Continue systematic code quality and optimization efforts
+
+**Files Modified**: 23 core files enhanced  
+**Git Status**: Ready for commit

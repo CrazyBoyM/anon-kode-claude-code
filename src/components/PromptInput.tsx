@@ -87,12 +87,13 @@ type Props = {
   submitCount: number
   onSubmitCountChange: (updater: (prev: number) => number) => void
   setIsLoading: (isLoading: boolean) => void
-  setAbortController: (abortController: AbortController) => void
+  setAbortController: (abortController: AbortController | null) => void
   onShowMessageSelector: () => void
   setForkConvoWithMessagesOnTheNextRender: (
     forkConvoWithMessages: Message[],
   ) => void
   readFileTimestamps: { [filename: string]: number }
+  abortController: AbortController | null
 }
 
 function getPastedTextPrompt(text: string): string {
@@ -124,6 +125,7 @@ function PromptInput({
   onShowMessageSelector,
   setForkConvoWithMessagesOnTheNextRender,
   readFileTimestamps,
+  abortController,
 }: Props): React.ReactNode {
   const [isAutoUpdating, setIsAutoUpdating] = useState(false)
   const [exitMessage, setExitMessage] = useState<{
@@ -223,9 +225,15 @@ function PromptInput({
         // Switch to prompt mode but tag the submission for later capture
         onModeChange('prompt')
 
-        // Create a new AbortController for this request
-        const abortController = new AbortController()
-        setAbortController(abortController)
+        // 🔧 Fix Koding mode: clean up previous state
+        if (abortController) {
+          abortController.abort()
+          setAbortController(null)
+        }
+        setIsLoading(false)
+        await new Promise(resolve => setTimeout(resolve, 0))
+
+        // Set loading state - AbortController now created in onQuery
         setIsLoading(true)
 
         // Get appropriate model
@@ -250,7 +258,7 @@ function PromptInput({
               kodingContext,
             },
             messageId: undefined,
-            abortController,
+            abortController: abortController || new AbortController(), // Temporary controller, actual one created in onQuery
             readFileTimestamps,
             setForkConvoWithMessagesOnTheNextRender,
           },
@@ -259,7 +267,7 @@ function PromptInput({
 
         // Send query and capture response
         if (messages.length) {
-          await onQuery(messages, abortController)
+          await onQuery(messages)
 
           // After query completes, the last message should be Claude's response
           // We'll set up a one-time listener to capture and save Claude's response
@@ -324,10 +332,22 @@ function PromptInput({
     setPastedImage(null)
     setPastedText(null)
     onSubmitCountChange(_ => _ + 1)
-    setIsLoading(true)
 
-    const abortController = new AbortController()
-    setAbortController(abortController)
+    // 🔧 Fix: clean up previous state before new request to avoid cancellation state interference
+    // Clean up previous AbortController (if exists)
+    if (abortController) {
+      abortController.abort()
+      setAbortController(null)
+    }
+
+    // Reset loading state (prevent race conditions)
+    setIsLoading(false)
+
+    // Brief delay to ensure state cleanup is complete, then start new request
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // Set loading state - AbortController now created in onQuery
+    setIsLoading(true)
     const model = await getSlowAndCapableModel()
     const messages = await processUserInput(
       finalInput,
@@ -344,7 +364,7 @@ function PromptInput({
           maxThinkingTokens: 0,
         },
         messageId: undefined,
-        abortController,
+        abortController: abortController || new AbortController(), // Temporary controller, actual one created in onQuery
         readFileTimestamps,
         setForkConvoWithMessagesOnTheNextRender,
       },
@@ -352,7 +372,7 @@ function PromptInput({
     )
 
     if (messages.length) {
-      onQuery(messages, abortController)
+      onQuery(messages)
     } else {
       // Local JSX commands
       addToHistory(input)

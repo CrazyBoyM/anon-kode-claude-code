@@ -775,41 +775,150 @@ export default {
       supports_tool_choice: true,
     },
   ],
+  kimi: [
+    {
+      model: 'kimi-k2-0711-preview',
+      max_tokens: 16384,
+      max_input_tokens: 128000,
+      max_output_tokens: 16384,
+      input_cost_per_token: 0.000003,
+      output_cost_per_token: 0.000015,
+      provider: 'kimi',
+      mode: 'chat',
+      supports_function_calling: true,
+      supports_system_messages: true,
+      supports_tool_choice: true,
+    },
+  ],
+  bigdream: [
+    {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      max_input_tokens: 200000,
+      max_output_tokens: 8192,
+      input_cost_per_token: 0.000003,
+      output_cost_per_token: 0.000015,
+      provider: 'bigdream',
+      mode: 'chat',
+      supports_function_calling: true,
+      supports_vision: true,
+      supports_system_messages: true,
+      supports_tool_choice: true,
+      supports_prompt_caching: true,
+    },
+  ],
+  qwen: [],
+  glm: [],
+  minimax: [
+    {
+      model: 'abab6.5s-chat',
+      max_tokens: 8192,
+      max_input_tokens: 245760,
+      max_output_tokens: 8192,
+      input_cost_per_token: 0.000001,
+      output_cost_per_token: 0.000003,
+      provider: 'minimax',
+      mode: 'chat',
+      supports_function_calling: true,
+      supports_system_messages: true,
+      supports_tool_choice: true,
+    },
+    {
+      model: 'abab6.5g-chat',
+      max_tokens: 8192,
+      max_input_tokens: 245760,
+      max_output_tokens: 8192,
+      input_cost_per_token: 0.000002,
+      output_cost_per_token: 0.000006,
+      provider: 'minimax',
+      mode: 'chat',
+      supports_function_calling: true,
+      supports_system_messages: true,
+      supports_tool_choice: true,
+    },
+    {
+      model: 'abab5.5s-chat',
+      max_tokens: 8192,
+      max_input_tokens: 16384,
+      max_output_tokens: 8192,
+      input_cost_per_token: 0.0000005,
+      output_cost_per_token: 0.000002,
+      provider: 'minimax',
+      mode: 'chat',
+      supports_function_calling: true,
+      supports_system_messages: true,
+      supports_tool_choice: true,
+    },
+  ],
+  'baidu-qianfan': [],
+  siliconflow: [],
   ollama: [],
 }
 
 export const providers = {
+  kimi: {
+    name: 'Kimi (Moonshot)',
+    baseURL: 'https://api.moonshot.cn/v1',
+  },
+  anthropic: {
+    name: 'Claude',
+    baseURL: 'https://api.anthropic.com',
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    baseURL: 'https://api.deepseek.com',
+  },
+  qwen: {
+    name: 'Qwen (Alibaba)',
+    baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  },
   openai: {
     name: 'OpenAI',
     baseURL: 'https://api.openai.com/v1',
-  },
-  openrouter: {
-    name: 'OpenRouter',
-    baseURL: 'https://openrouter.ai/api/v1',
-  },
-  anthropic: {
-    name: 'Anthropic',
-    baseURL: 'https://api.anthropic.com/v1',
-  },
-  'custom-openai': {
-    name: 'Custom OpenAI-Compatible API',
-    baseURL: '', // Will be configured by user
-  },
-  gemini: {
-    name: 'Gemini',
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
   },
   ollama: {
     name: 'Ollama',
     baseURL: 'http://localhost:11434/v1',
   },
+  gemini: {
+    name: 'Gemini',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
+  },
+  bigdream: {
+    name: 'BigDream',
+    baseURL: 'https://api-key.info',
+  },
+  opendev: {
+    name: 'OpenDev',
+    baseURL: 'https://api.openai-next.com',
+  },
+  'custom-openai': {
+    name: 'Custom OpenAI-Compatible API',
+    baseURL: '', // Will be configured by user
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    baseURL: 'https://openrouter.ai/api/v1',
+  },
+  minimax: {
+    name: 'MiniMax',
+    baseURL: 'https://api.minimaxi.com/v1',
+  },
+  siliconflow: {
+    name: 'SiliconFlow',
+    baseURL: 'https://api.siliconflow.cn/v1',
+  },
+  glm: {
+    name: 'GLM (Zhipu AI)',
+    baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+  },
+  'baidu-qianfan': {
+    name: 'Baidu Qianfan',
+    baseURL: 'https://qianfan.baidubce.com/v2',
+  },
   mistral: {
     name: 'Mistral',
     baseURL: 'https://api.mistral.ai/v1',
-  },
-  deepseek: {
-    name: 'DeepSeek',
-    baseURL: 'https://api.deepseek.com',
   },
   xai: {
     name: 'xAI',

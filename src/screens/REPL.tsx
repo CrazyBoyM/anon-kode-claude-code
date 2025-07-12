@@ -54,6 +54,7 @@ import {
   processUserInput,
   reorderMessages,
   extractTag,
+  createAssistantMessage,
 } from '../utils/messages.js'
 import { getSlowAndCapableModel } from '../utils/model'
 import { clearTerminal, updateTerminalTitle } from '../utils/terminal'
@@ -114,8 +115,11 @@ export function REPL({
     setForkConvoWithMessagesOnTheNextRender,
   ] = useState<MessageType[] | null>(null)
 
-  const [abortController, setAbortController] =
-    useState<AbortController | null>(null)
+  const [currentRequest, setCurrentRequest] = useState<{
+    id: string
+    abortController: AbortController
+    isActive: boolean
+  } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [autoUpdaterResult, setAutoUpdaterResult] =
     useState<AutoUpdaterResult | null>(null)
@@ -164,16 +168,40 @@ export function REPL({
 
   const { status: apiKeyStatus, reverify } = useApiKeyVerification()
   function onCancel() {
-    if (!isLoading) {
+    if (!isLoading || !currentRequest?.isActive) {
       return
     }
-    setIsLoading(false)
+
+    // 🔧 Critical fix: immediately display interrupt message, don't wait for async processing
+    const interruptMessage = createAssistantMessage(INTERRUPT_MESSAGE)
+    setMessages(oldMessages => [...oldMessages, interruptMessage])
+
+    // Immediately mark request as cancelled and stop all processing
+    const requestToCancel = currentRequest
+    requestToCancel.isActive = false
+
+    // Abort the request immediately to stop background processing
+    requestToCancel.abortController.abort(new Error('User cancellation'))
+
     if (toolUseConfirm) {
       // Tool use confirm handles the abort signal itself
       toolUseConfirm.onAbort()
-    } else {
-      abortController?.abort()
     }
+
+    // Clean up all related state
+    setToolJSX(null)
+    setToolUseConfirm(null)
+    setBinaryFeedbackContext(null)
+
+    // Immediately clear loading state since request is cancelled
+    setIsLoading(false)
+
+    // Async cleanup of request reference to avoid immediate race condition
+    setImmediate(() => {
+      if (currentRequest === requestToCancel) {
+        setCurrentRequest(null)
+      }
+    })
   }
 
   useCancelRequest(
@@ -183,7 +211,7 @@ export function REPL({
     onCancel,
     isLoading,
     isMessageSelectorVisible,
-    abortController?.signal,
+    currentRequest?.abortController?.signal,
   )
 
   useEffect(() => {
@@ -302,110 +330,127 @@ export function REPL({
     setIsLoading(false)
   }
 
-  async function onQuery(
-    newMessages: MessageType[],
-    abortController: AbortController,
-  ) {
-    // Check if this is a Koding request based on last message's options
-    const isKodingRequest =
-      newMessages.length > 0 &&
-      newMessages[0].type === 'user' &&
-      'options' in newMessages[0] &&
-      newMessages[0].options?.isKodingRequest === true
+  async function onQuery(newMessages: MessageType[]) {
+    try {
+      // 🔧 Core fix: create completely new request context for thorough state isolation
+      const newRequest = {
+        id: crypto.randomUUID(),
+        abortController: new AbortController(),
+        isActive: true,
+      }
 
-    setMessages(oldMessages => [...oldMessages, ...newMessages])
+      // Immediately set new request context to ensure state isolation
+      setCurrentRequest(newRequest)
+      // Check if this is a Koding request based on last message's options
+      const isKodingRequest =
+        newMessages.length > 0 &&
+        newMessages[0].type === 'user' &&
+        'options' in newMessages[0] &&
+        newMessages[0].options?.isKodingRequest === true
 
-    // Mark onboarding as complete when any user message is sent to Claude
-    markProjectOnboardingComplete()
+      setMessages(oldMessages => [...oldMessages, ...newMessages])
 
-    // The last message is an assistant message if the user input was a bash command,
-    // or if the user input was an invalid slash command.
-    const lastMessage = newMessages[newMessages.length - 1]!
+      // Mark onboarding as complete when any user message is sent to Claude
+      markProjectOnboardingComplete()
 
-    // Update terminal title based on user message
-    if (
-      lastMessage.type === 'user' &&
-      typeof lastMessage.message.content === 'string'
-    ) {
-      // updateTerminalTitle(lastMessage.message.content)
-    }
-    if (lastMessage.type === 'assistant') {
-      setAbortController(null)
-      setIsLoading(false)
-      return
-    }
+      // The last message is an assistant message if the user input was a bash command,
+      // or if the user input was an invalid slash command.
+      const lastMessage = newMessages[newMessages.length - 1]!
 
-    const [systemPrompt, context, model, maxThinkingTokens] = await Promise.all(
-      [
-        getSystemPrompt(),
-        getContext(),
-        getSlowAndCapableModel(),
-        getMaxThinkingTokens([...messages, lastMessage]),
-      ],
-    )
+      // Update terminal title based on user message
+      if (
+        lastMessage.type === 'user' &&
+        typeof lastMessage.message.content === 'string'
+      ) {
+        // updateTerminalTitle(lastMessage.message.content)
+      }
+      if (lastMessage.type === 'assistant') {
+        setAbortController(null)
+        setIsLoading(false)
+        return
+      }
 
-    let lastAssistantMessage: MessageType | null = null
+      const [systemPrompt, context, model, maxThinkingTokens] =
+        await Promise.all([
+          getSystemPrompt(),
+          getContext(),
+          getSlowAndCapableModel(),
+          getMaxThinkingTokens([...messages, lastMessage]),
+        ])
 
-    // query the API
-    for await (const message of query(
-      [...messages, lastMessage],
-      systemPrompt,
-      context,
-      canUseTool,
-      {
-        options: {
-          commands,
-          forkNumber,
-          messageLogName,
-          tools,
-          slowAndCapableModel: model,
-          verbose,
-          dangerouslySkipPermissions,
-          maxThinkingTokens,
-          // If this came from Koding mode, pass that along
-          isKodingRequest: isKodingRequest || undefined,
+      let lastAssistantMessage: MessageType | null = null
+
+      // query the API
+      for await (const message of query(
+        [...messages, lastMessage],
+        systemPrompt,
+        context,
+        canUseTool,
+        {
+          options: {
+            commands,
+            forkNumber,
+            messageLogName,
+            tools,
+            slowAndCapableModel: model,
+            verbose,
+            dangerouslySkipPermissions,
+            maxThinkingTokens,
+            // If this came from Koding mode, pass that along
+            isKodingRequest: isKodingRequest || undefined,
+          },
+          messageId: getLastAssistantMessageId([...messages, lastMessage]),
+          readFileTimestamps: readFileTimestamps.current,
+          abortController: newRequest.abortController,
+          setToolJSX,
+          requestId: newRequest.id, // 🔧 Add request ID for state isolation
         },
-        messageId: getLastAssistantMessageId([...messages, lastMessage]),
-        readFileTimestamps: readFileTimestamps.current,
-        abortController,
-        setToolJSX,
-      },
-      getBinaryFeedbackResponse,
-    )) {
-      setMessages(oldMessages => [...oldMessages, message])
-
-      // Keep track of the last assistant message for Koding mode
-      if (message.type === 'assistant') {
-        lastAssistantMessage = message
-      }
-    }
-
-    // If this was a Koding request and we got an assistant message back,
-    // save it to Code_Context.md (and CLAUDE.md if exists)
-    if (
-      isKodingRequest &&
-      lastAssistantMessage &&
-      lastAssistantMessage.type === 'assistant'
-    ) {
-      try {
-        const content =
-          typeof lastAssistantMessage.message.content === 'string'
-            ? lastAssistantMessage.message.content
-            : lastAssistantMessage.message.content
-                .filter(block => block.type === 'text')
-                .map(block => (block.type === 'text' ? block.text : ''))
-                .join('\n')
-
-        // Add the content to Code_Context.md (and CLAUDE.md if exists)
-        if (content && content.trim().length > 0) {
-          handleHashCommand(content)
+        getBinaryFeedbackResponse,
+      )) {
+        // Check if this specific request was cancelled before processing message
+        if (!newRequest.isActive || newRequest.abortController.signal.aborted) {
+          break
         }
-      } catch (error) {
-        console.error('Error saving response to project docs:', error)
-      }
-    }
 
-    setIsLoading(false)
+        setMessages(oldMessages => [...oldMessages, message])
+
+        // Keep track of the last assistant message for Koding mode
+        if (message.type === 'assistant') {
+          lastAssistantMessage = message
+        }
+      }
+
+      // If this was a Koding request and we got an assistant message back,
+      // save it to Code_Context.md (and CLAUDE.md if exists)
+      if (
+        isKodingRequest &&
+        lastAssistantMessage &&
+        lastAssistantMessage.type === 'assistant'
+      ) {
+        try {
+          const content =
+            typeof lastAssistantMessage.message.content === 'string'
+              ? lastAssistantMessage.message.content
+              : lastAssistantMessage.message.content
+                  .filter(block => block.type === 'text')
+                  .map(block => (block.type === 'text' ? block.text : ''))
+                  .join('\n')
+
+          // Add the content to Code_Context.md (and CLAUDE.md if exists)
+          if (content && content.trim().length > 0) {
+            handleHashCommand(content)
+          }
+        } catch (error) {
+          console.error('Error saving response to project docs:', error)
+        }
+      }
+
+      setIsLoading(false)
+    } catch (error) {
+      console.error('Error in onQuery:', error)
+      setIsLoading(false)
+      setCurrentRequest(null)
+    }
   }
 
   // Register cost summary tracker
@@ -677,7 +722,10 @@ export function REPL({
                 submitCount={submitCount}
                 onSubmitCountChange={setSubmitCount}
                 setIsLoading={setIsLoading}
-                setAbortController={setAbortController}
+                setAbortController={controller => {
+                  // This prop is now deprecated - request context management is handled internally
+                  // Only used for cleanup purposes
+                }}
                 onShowMessageSelector={() =>
                   setIsMessageSelectorVisible(prev => !prev)
                 }
@@ -685,6 +733,7 @@ export function REPL({
                   setForkConvoWithMessagesOnTheNextRender
                 }
                 readFileTimestamps={readFileTimestamps.current}
+                abortController={currentRequest?.abortController || null}
               />
             </>
           )}

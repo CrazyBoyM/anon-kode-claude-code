@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'crypto'
 import 'dotenv/config'
 
 import { addToTotalCost } from '../cost-tracker'
+import models from '../constants/models'
 import type { AssistantMessage, UserMessage } from '../query'
 import { Tool } from '../Tool'
 import {
@@ -175,9 +176,17 @@ async function withRetry<T>(
 /**
  * Fetch available models from Anthropic API
  */
-export async function fetchAnthropicModels(apiKey: string): Promise<any[]> {
+export async function fetchAnthropicModels(
+  baseURL: string,
+  apiKey: string,
+): Promise<any[]> {
   try {
-    const response = await fetch('https://api.anthropic.com/v1/models', {
+    // Use provided baseURL or default to official Anthropic API
+    const modelsURL = baseURL
+      ? `${baseURL.replace(/\/+$/, '')}/v1/models`
+      : 'https://api.anthropic.com/v1/models'
+
+    const response = await fetch(modelsURL, {
       method: 'GET',
       headers: {
         'x-api-key': apiKey,
@@ -230,20 +239,31 @@ export async function fetchAnthropicModels(apiKey: string): Promise<any[]> {
   }
 }
 
-export async function verifyApiKey(apiKey: string): Promise<boolean> {
-  const anthropic = new Anthropic({
+export async function verifyApiKey(
+  apiKey: string,
+  baseURL?: string,
+): Promise<boolean> {
+  const clientConfig: any = {
     apiKey,
     dangerouslyAllowBrowser: true,
     maxRetries: 3,
     defaultHeaders: {
       'User-Agent': USER_AGENT,
     },
-  })
+  }
+
+  // Add baseURL if provided (for third-party Anthropic-compatible APIs)
+  if (baseURL) {
+    clientConfig.baseURL = baseURL
+  }
+
+  const anthropic = new Anthropic(clientConfig)
 
   try {
     await withRetry(
       async () => {
-        const model = SMALL_FAST_MODEL
+        // Use Claude model for Anthropic-compatible APIs, otherwise use the configured model
+        const model = baseURL ? 'claude-sonnet-4-20250514' : SMALL_FAST_MODEL
         const messages: MessageParam[] = [{ role: 'user', content: 'test' }]
         await anthropic.messages.create({
           model,
@@ -530,6 +550,15 @@ let anthropicClient: Anthropic | AnthropicBedrock | AnthropicVertex | null =
 export function getAnthropicClient(
   model?: string,
 ): Anthropic | AnthropicBedrock | AnthropicVertex {
+  const config = getGlobalConfig()
+  const provider = config.primaryProvider
+
+  // Reset client if provider has changed to ensure correct configuration
+  if (anthropicClient && provider) {
+    // Always recreate client for provider-specific configurations
+    anthropicClient = null
+  }
+
   if (anthropicClient) {
     return anthropicClient
   }
@@ -565,20 +594,40 @@ export function getAnthropicClient(
     return client
   }
 
-  const apiKey = getAnthropicApiKey()
+  // Get appropriate API key and baseURL based on provider
+  let apiKey: string
+  let baseURL: string | undefined
 
-  if (process.env.USER_TYPE === 'ant' && !apiKey) {
+  if (provider === 'bigdream') {
+    apiKey = getActiveApiKey(config, 'large') || ''
+    baseURL = config.largeModelBaseURL || 'https://api-key.info'
+  } else if (provider === 'opendev') {
+    apiKey = getActiveApiKey(config, 'large') || ''
+    baseURL = config.largeModelBaseURL || 'https://api.openai-next.com'
+  } else {
+    // Default anthropic provider
+    apiKey = getAnthropicApiKey()
+    baseURL = undefined // Use default Anthropic API
+  }
+
+  if (process.env.USER_TYPE === 'ant' && !apiKey && provider === 'anthropic') {
     console.error(
       chalk.red(
         '[ANT-ONLY] Please set the ANTHROPIC_API_KEY environment variable to use the CLI. To create a new key, go to https://console.anthropic.com/settings/keys.',
       ),
     )
   }
-  anthropicClient = new Anthropic({
+
+  // Create client with custom baseURL for BigDream/OpenDev
+  // Anthropic SDK will append the appropriate paths (like /v1/messages)
+  const clientConfig = {
     apiKey,
     dangerouslyAllowBrowser: true,
     ...ARGS,
-  })
+    ...(baseURL && { baseURL }), // Use baseURL directly, SDK will handle API versioning
+  }
+
+  anthropicClient = new Anthropic(clientConfig)
   return anthropicClient
 }
 
@@ -771,6 +820,27 @@ async function querySonnetWithPromptCaching(
     prependCLISysprompt: boolean
   },
 ): Promise<AssistantMessage> {
+  const config = getGlobalConfig()
+  const provider = config.primaryProvider
+
+  // Use native Anthropic SDK for Anthropic and Anthropic-compatible providers
+  if (
+    provider === 'anthropic' ||
+    provider === 'bigdream' ||
+    provider === 'opendev'
+  ) {
+    return queryAnthropicNative(
+      'large',
+      messages,
+      systemPrompt,
+      maxThinkingTokens,
+      tools,
+      signal,
+      options,
+    )
+  }
+
+  // Use OpenAI-compatible interface for all other providers (including custom Anthropic endpoints)
   return queryOpenAI(
     'large',
     messages,
@@ -780,6 +850,225 @@ async function querySonnetWithPromptCaching(
     signal,
     options,
   )
+}
+
+async function queryAnthropicNative(
+  modelType: 'large' | 'small',
+  messages: (UserMessage | AssistantMessage)[],
+  systemPrompt: string[],
+  maxThinkingTokens: number,
+  tools: Tool[],
+  signal: AbortSignal,
+  options?: {
+    dangerouslySkipPermissions: boolean
+    model: string
+    prependCLISysprompt: boolean
+  },
+): Promise<AssistantMessage> {
+  const anthropic = getAnthropicClient(options?.model)
+  const config = getGlobalConfig()
+  const provider = config.primaryProvider
+  const model =
+    modelType === 'large' ? config.largeModelName : config.smallModelName
+
+  // Prepend system prompt block for easy API identification
+  if (options?.prependCLISysprompt) {
+    // Log stats about first block for analyzing prefix matching config
+    const [firstSyspromptBlock] = splitSysPromptPrefix(systemPrompt)
+    logEvent('tengu_sysprompt_block', {
+      snippet: firstSyspromptBlock?.slice(0, 20),
+      length: String(firstSyspromptBlock?.length ?? 0),
+      hash: firstSyspromptBlock
+        ? createHash('sha256').update(firstSyspromptBlock).digest('hex')
+        : '',
+    })
+
+    systemPrompt = [getCLISyspromptPrefix(), ...systemPrompt]
+  }
+
+  const system: TextBlockParam[] = splitSysPromptPrefix(systemPrompt).map(
+    _ => ({
+      ...(PROMPT_CACHING_ENABLED
+        ? { cache_control: { type: 'ephemeral' } }
+        : {}),
+      text: _,
+      type: 'text',
+    }),
+  )
+
+  const toolSchemas = tools.map(
+    tool =>
+      ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: zodToJsonSchema(tool.inputSchema),
+      }) as Anthropic.Beta.Tools.Tool,
+  )
+
+  const anthropicMessages = addCacheBreakpoints(messages)
+  const startIncludingRetries = Date.now()
+
+  let start = Date.now()
+  let attemptNumber = 0
+  let response
+
+  try {
+    response = await withRetry(async attempt => {
+      attemptNumber = attempt
+      start = Date.now()
+
+      const params: Anthropic.Beta.Messages.MessageCreateParams = {
+        model,
+        max_tokens: getMaxTokensForModelType(modelType),
+        messages: anthropicMessages,
+        system,
+        tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+        tool_choice: toolSchemas.length > 0 ? { type: 'auto' } : undefined,
+      }
+
+      if (maxThinkingTokens > 0) {
+        params.extra_headers = {
+          'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15',
+        }
+        ;(params as any).thinking = { max_tokens: maxThinkingTokens }
+      }
+
+      if (config.stream) {
+        const stream = await anthropic.beta.messages.create({
+          ...params,
+          stream: true,
+        })
+
+        let finalResponse: Anthropic.Beta.Messages.Message | null = null
+        let messageStartEvent: any = null
+        const contentBlocks: any[] = []
+        let usage: any = null
+        let stopReason: string | null = null
+        let stopSequence: string | null = null
+
+        for await (const event of stream) {
+          if (event.type === 'message_start') {
+            messageStartEvent = event
+            finalResponse = {
+              ...event.message,
+              content: [], // Will be populated from content blocks
+            }
+          } else if (event.type === 'content_block_start') {
+            contentBlocks[event.index] = { ...event.content_block }
+          } else if (event.type === 'content_block_delta') {
+            if (!contentBlocks[event.index]) {
+              contentBlocks[event.index] = {
+                type: event.delta.type === 'text_delta' ? 'text' : 'unknown',
+                text: '',
+              }
+            }
+            if (event.delta.type === 'text_delta') {
+              contentBlocks[event.index].text += event.delta.text
+            }
+          } else if (event.type === 'message_delta') {
+            if (event.delta.stop_reason) stopReason = event.delta.stop_reason
+            if (event.delta.stop_sequence)
+              stopSequence = event.delta.stop_sequence
+            if (event.usage) usage = { ...usage, ...event.usage }
+          } else if (event.type === 'message_stop') {
+            break
+          }
+        }
+
+        if (!finalResponse || !messageStartEvent) {
+          throw new Error('Stream ended without proper message structure')
+        }
+
+        // Construct the final response
+        finalResponse = {
+          ...messageStartEvent.message,
+          content: contentBlocks.filter(Boolean),
+          stop_reason: stopReason,
+          stop_sequence: stopSequence,
+          usage: {
+            ...messageStartEvent.message.usage,
+            ...usage,
+          },
+        }
+
+        return finalResponse
+      } else {
+        return await anthropic.beta.messages.create(params)
+      }
+    })
+
+    const ttftMs = start - Date.now()
+    const durationMs = Date.now() - startIncludingRetries
+
+    const content = response.content.map((block: ContentBlock) => {
+      if (block.type === 'text') {
+        return {
+          type: 'text' as const,
+          text: block.text,
+        }
+      } else if (block.type === 'tool_use') {
+        return {
+          type: 'tool_use' as const,
+          id: block.id,
+          name: block.name,
+          input: block.input,
+        }
+      }
+      return block
+    })
+
+    const assistantMessage: AssistantMessage = {
+      message: {
+        id: response.id,
+        content,
+        model: response.model,
+        role: 'assistant',
+        stop_reason: response.stop_reason,
+        stop_sequence: response.stop_sequence,
+        type: 'message',
+        usage: response.usage,
+      },
+      type: 'assistant',
+      uuid: nanoid() as UUID,
+      ttftMs,
+      durationMs,
+      costUSD: 0, // Will be calculated below
+    }
+
+    // Calculate cost using native Anthropic usage data
+    const inputTokens = response.usage.input_tokens
+    const outputTokens = response.usage.output_tokens
+    const cacheCreationInputTokens =
+      response.usage.cache_creation_input_tokens ?? 0
+    const cacheReadInputTokens = response.usage.cache_read_input_tokens ?? 0
+
+    const costUSD =
+      (inputTokens / 1_000_000) * getModelInputTokenCostUSD(model) +
+      (outputTokens / 1_000_000) * getModelOutputTokenCostUSD(model) +
+      (cacheCreationInputTokens / 1_000_000) *
+        getModelInputTokenCostUSD(model) +
+      (cacheReadInputTokens / 1_000_000) *
+        (getModelInputTokenCostUSD(model) * 0.1) // Cache reads are 10% of input cost
+
+    assistantMessage.costUSD = costUSD
+    addToTotalCost(costUSD)
+
+    logEvent('api_response_anthropic_native', {
+      model,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      cache_creation_input_tokens: cacheCreationInputTokens,
+      cache_read_input_tokens: cacheReadInputTokens,
+      cost_usd: costUSD,
+      duration_ms: durationMs,
+      ttft_ms: ttftMs,
+      attempt_number: attemptNumber,
+    })
+
+    return assistantMessage
+  } catch (error) {
+    return getAssistantMessageFromError(error)
+  }
 }
 
 function getAssistantMessageFromError(error: unknown): AssistantMessage {
@@ -1033,4 +1322,28 @@ function getMaxTokensForModelType(modelType: 'large' | 'small'): number {
   }
 
   return maxTokens ?? 8000
+}
+
+function getModelInputTokenCostUSD(model: string): number {
+  // Find the model in the models object
+  for (const providerModels of Object.values(models)) {
+    const modelInfo = providerModels.find((m: any) => m.model === model)
+    if (modelInfo) {
+      return modelInfo.input_cost_per_token || 0
+    }
+  }
+  // Default fallback cost for unknown models
+  return 0.000003 // Default to Claude 3 Haiku cost
+}
+
+function getModelOutputTokenCostUSD(model: string): number {
+  // Find the model in the models object
+  for (const providerModels of Object.values(models)) {
+    const modelInfo = providerModels.find((m: any) => m.model === model)
+    if (modelInfo) {
+      return modelInfo.output_cost_per_token || 0
+    }
+  }
+  // Default fallback cost for unknown models
+  return 0.000015 // Default to Claude 3 Haiku cost
 }

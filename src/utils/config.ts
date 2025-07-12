@@ -91,6 +91,14 @@ export type ProviderType =
   | 'openai'
   | 'mistral'
   | 'deepseek'
+  | 'kimi'
+  | 'qwen'
+  | 'glm'
+  | 'minimax'
+  | 'baidu-qianfan'
+  | 'siliconflow'
+  | 'bigdream'
+  | 'opendev'
   | 'xai'
   | 'groq'
   | 'gemini'
@@ -139,6 +147,8 @@ export type GlobalConfig = {
   smallModelReasoningEffort?: 'low' | 'medium' | 'high' | undefined
   smallModelMaxTokens?: number
   largeModelMaxTokens?: number
+  smallModelContextLength?: number
+  largeModelContextLength?: number
   maxTokens?: number
   hasAcknowledgedCostThreshold?: boolean
   oauthAccount?: AccountInfo

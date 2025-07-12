@@ -236,7 +236,9 @@ export const AgentTool = {
             ############### Task Prompt Start ###############
           </Text>
           <Text>{'\n\n'}</Text>
-          <Text bold color={theme.text}>{applyMarkdown(prompt)}</Text>
+          <Text bold color={theme.text}>
+            {applyMarkdown(prompt)}
+          </Text>
           <Text>{'\n\n'}</Text>
           <Text bold color="yellow">
             ############### Task Prompt End ###############

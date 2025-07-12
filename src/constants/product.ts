@@ -5,7 +5,7 @@ export const PRODUCT_COMMAND = 'kode'
 export const CONFIG_BASE_DIR = '.lastkode'
 export const CONFIG_FILE = '.lastkode.json'
 export const GITHUB_ISSUES_REPO_URL =
-  'https://github.com/shareAI-lab/LastKode'
+  'https://github.com/shareAI-lab/LastKode/issues'
 
 export const ASCII_LOGO = `
   _                     _       _  __              _        

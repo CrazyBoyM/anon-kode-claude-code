@@ -15,7 +15,7 @@ assignees: ''
 Kode Version: <!-- kode --version -->
 OS: <!-- macos/win -->
 
-## Models <!-- get from /config or from ~/.koding.json -->
+## Models <!-- get from /config or from ~/.lastkode.json -->
 baseURL:
 name:
 maxTokens:

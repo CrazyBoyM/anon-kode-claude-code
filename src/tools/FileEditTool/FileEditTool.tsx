@@ -253,7 +253,8 @@ export const FileEditTool = {
       oldString: old_string,
       newString: new_string,
       timestamp: Date.now(),
-      operation: old_string === '' ? 'create' : new_string === '' ? 'delete' : 'update'
+      operation:
+        old_string === '' ? 'create' : new_string === '' ? 'delete' : 'update',
     })
 
     const data = {

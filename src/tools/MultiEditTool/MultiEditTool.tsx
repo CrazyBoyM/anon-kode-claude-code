@@ -310,11 +310,14 @@ export const MultiEditTool = {
       // Emit file edited event for system reminders
       emitReminderEvent('file:edited', {
         filePath,
-        edits: edits.map(e => ({ oldString: e.old_string, newString: e.new_string })),
+        edits: edits.map(e => ({
+          oldString: e.old_string,
+          newString: e.new_string,
+        })),
         originalContent: currentContent,
         newContent: modifiedContent,
         timestamp: Date.now(),
-        operation: fileExists ? 'update' : 'create'
+        operation: fileExists ? 'update' : 'create',
       })
 
       // Generate result data

@@ -282,15 +282,42 @@ const createDefaultState = ({
 
   const optionMap = new OptionMap(flatOptions)
   const firstOption = optionMap.first
-  const focusedValue =
-    firstOption && 'value' in firstOption ? firstOption.value : undefined
+
+  // Use defaultValue for focusedValue if it exists and is valid, otherwise use first option
+  let focusedValue: string | undefined
+  if (defaultValue && optionMap.get(defaultValue)) {
+    focusedValue = defaultValue
+  } else {
+    focusedValue =
+      firstOption && 'value' in firstOption ? firstOption.value : undefined
+  }
+
+  // Calculate visible range based on focused value
+  let visibleFromIndex = 0
+  let visibleToIndex = visibleOptionCount
+
+  if (focusedValue && optionMap.get(focusedValue)) {
+    const focusedIndex = optionMap.get(focusedValue)!.index
+    // Center the focused option in the visible area if possible
+    const halfVisible = Math.floor(visibleOptionCount / 2)
+    visibleFromIndex = Math.max(0, focusedIndex - halfVisible)
+    visibleToIndex = Math.min(
+      flatOptions.length,
+      visibleFromIndex + visibleOptionCount,
+    )
+
+    // Adjust if we can't show enough items at the end
+    if (visibleToIndex - visibleFromIndex < visibleOptionCount) {
+      visibleFromIndex = Math.max(0, visibleToIndex - visibleOptionCount)
+    }
+  }
 
   return {
     optionMap,
     visibleOptionCount,
     focusedValue,
-    visibleFromIndex: 0,
-    visibleToIndex: visibleOptionCount,
+    visibleFromIndex,
+    visibleToIndex,
     previousValue: defaultValue,
     value: defaultValue,
   }

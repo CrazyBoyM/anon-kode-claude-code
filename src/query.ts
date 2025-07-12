@@ -32,6 +32,25 @@ import { createToolExecutionController } from './utils/toolExecutionController'
 import { BashTool } from './tools/BashTool/BashTool'
 import { getCwd } from './utils/state'
 
+// Extended ToolUseContext for query functions
+interface ExtendedToolUseContext extends ToolUseContext {
+  abortController: AbortController
+  options: {
+    commands: any[]
+    forkNumber: number
+    messageLogName: string
+    tools: Tool[]
+    slowAndCapableModel: string
+    verbose: boolean
+    dangerouslySkipPermissions: boolean
+    maxThinkingTokens: number
+    isKodingRequest?: boolean
+  }
+  readFileTimestamps: { [filename: string]: number }
+  setToolJSX: (jsx: any) => void
+  requestId?: string
+}
+
 export type Response = { costUSD: number; response: string }
 export type UserMessage = {
   message: MessageParam
@@ -74,7 +93,7 @@ const MAX_TOOL_USE_CONCURRENCY = 10
 
 // Returns a message if we got one, or `null` if the user cancelled
 async function queryWithBinaryFeedback(
-  toolUseContext: ToolUseContext,
+  toolUseContext: ExtendedToolUseContext,
   getAssistantResponse: () => Promise<AssistantMessage>,
   getBinaryFeedbackResponse?: (
     m1: AssistantMessage,
@@ -131,7 +150,7 @@ export async function* query(
   systemPrompt: string[],
   context: { [k: string]: string },
   canUseTool: CanUseToolFn,
-  toolUseContext: ToolUseContext,
+  toolUseContext: ExtendedToolUseContext,
   getBinaryFeedbackResponse?: (
     m1: AssistantMessage,
     m2: AssistantMessage,
@@ -158,14 +177,20 @@ export async function* query(
     )
   }
 
+  let abortStartTime = Date.now()
+
   const result = await queryWithBinaryFeedback(
     toolUseContext,
     getAssistantResponse,
     getBinaryFeedbackResponse,
   )
 
+  // If request was cancelled, return immediately (onCancel already handled the message)
+  if (toolUseContext.abortController.signal.aborted) {
+    return
+  }
+
   if (result.message === null) {
-    yield createAssistantMessage(INTERRUPT_MESSAGE)
     return
   }
 
@@ -272,7 +297,7 @@ async function* runToolsConcurrently(
   toolUseMessages: ToolUseBlock[],
   assistantMessage: AssistantMessage,
   canUseTool: CanUseToolFn,
-  toolUseContext: ToolUseContext,
+  toolUseContext: ExtendedToolUseContext,
   shouldSkipPermissionCheck?: boolean,
 ): AsyncGenerator<Message, void> {
   yield* all(
@@ -294,7 +319,7 @@ async function* runToolsSerially(
   toolUseMessages: ToolUseBlock[],
   assistantMessage: AssistantMessage,
   canUseTool: CanUseToolFn,
-  toolUseContext: ToolUseContext,
+  toolUseContext: ExtendedToolUseContext,
   shouldSkipPermissionCheck?: boolean,
 ): AsyncGenerator<Message, void> {
   for (const toolUse of toolUseMessages) {
@@ -314,9 +339,14 @@ export async function* runToolUse(
   siblingToolUseIDs: Set<string>,
   assistantMessage: AssistantMessage,
   canUseTool: CanUseToolFn,
-  toolUseContext: ToolUseContext,
+  toolUseContext: ExtendedToolUseContext,
   shouldSkipPermissionCheck?: boolean,
 ): AsyncGenerator<Message, void> {
+  logEvent('tengu_tool_use_start', {
+    toolName: toolUse.name,
+    toolUseID: toolUse.id,
+  })
+
   const toolName = toolUse.name
   const tool = toolUseContext.options.tools.find(t => t.name === toolName)
 

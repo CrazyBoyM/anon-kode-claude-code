@@ -36,9 +36,9 @@ export async function getClaudeFiles(): Promise<string | null> {
         ['--files', '--glob', join('**', '*', 'CLAUDE.md')],
         getCwd(),
         abortController.signal,
-      ).catch(() => [])
+      ).catch(() => []),
     ])
-    
+
     const allFiles = [...codeContextFiles, ...claudeFiles]
     if (!allFiles.length) {
       return null
@@ -48,7 +48,7 @@ export async function getClaudeFiles(): Promise<string | null> {
     const fileTypes = []
     if (codeContextFiles.length > 0) fileTypes.push('Code_Context.md')
     if (claudeFiles.length > 0) fileTypes.push('CLAUDE.md')
-    
+
     return `NOTE: Additional project documentation files (${fileTypes.join(', ')}) were found. When working in these directories, make sure to read and follow the instructions in the corresponding files:\n${allFiles
       .map(_ => path.join(getCwd(), _))
       .map(_ => `- ${_}`)
@@ -104,9 +104,9 @@ export const getProjectDocs = memoize(async (): Promise<string | null> => {
     const cwd = getCwd()
     const codeContextPath = join(cwd, 'Code_Context.md')
     const claudePath = join(cwd, 'CLAUDE.md')
-    
+
     const docs = []
-    
+
     // Try to read Code_Context.md
     if (existsSync(codeContextPath)) {
       try {
@@ -116,7 +116,7 @@ export const getProjectDocs = memoize(async (): Promise<string | null> => {
         logError(e)
       }
     }
-    
+
     // Try to read CLAUDE.md
     if (existsSync(claudePath)) {
       try {
@@ -126,7 +126,7 @@ export const getProjectDocs = memoize(async (): Promise<string | null> => {
         logError(e)
       }
     }
-    
+
     return docs.length > 0 ? docs.join('\n\n---\n\n') : null
   } catch (e) {
     logError(e)

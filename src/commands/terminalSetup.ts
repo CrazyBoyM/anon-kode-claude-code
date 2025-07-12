@@ -57,13 +57,13 @@ export function handleHashCommand(interpreted: string): void {
     const cwd = process.cwd()
     const codeContextPath = join(cwd, 'Code_Context.md')
     const claudePath = join(cwd, 'CLAUDE.md')
-    
+
     // Check which files exist and update them
     const filesToUpdate = []
-    
+
     // Always try to update Code_Context.md (create if not exists)
     filesToUpdate.push({ path: codeContextPath, name: 'Code_Context.md' })
-    
+
     // Update CLAUDE.md only if it exists
     try {
       readFileSync(claudePath, 'utf-8')
@@ -71,7 +71,7 @@ export function handleHashCommand(interpreted: string): void {
     } catch {
       // CLAUDE.md doesn't exist, skip it
     }
-    
+
     const now = new Date()
     const timezoneMatch = now.toString().match(/\(([A-Z]+)\)/)
     const timezone = timezoneMatch
@@ -84,9 +84,9 @@ export function handleHashCommand(interpreted: string): void {
     const timestamp = interpreted.includes(now.getFullYear().toString())
       ? ''
       : `\n\n_Added on ${now.toLocaleString()} ${timezone}_`
-    
+
     const updatedFiles = []
-    
+
     for (const file of filesToUpdate) {
       try {
         // Check if file exists, if not create it
@@ -113,7 +113,7 @@ export function handleHashCommand(interpreted: string): void {
         )
       }
     }
-    
+
     if (updatedFiles.length > 0) {
       console.log(
         chalk.hex(getTheme().success)(
@@ -124,9 +124,7 @@ export function handleHashCommand(interpreted: string): void {
   } catch (e) {
     logError(e)
     console.error(
-      chalk.hex(getTheme().error)(
-        `Failed to add note: ${e.message}`,
-      ),
+      chalk.hex(getTheme().error)(`Failed to add note: ${e.message}`),
     )
   }
 }

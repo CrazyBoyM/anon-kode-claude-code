@@ -227,7 +227,7 @@ export const FileWriteTool = {
       content,
       oldContent: oldContent || '',
       timestamp: Date.now(),
-      operation: oldFileExists ? 'update' : 'create'
+      operation: oldFileExists ? 'update' : 'create',
     })
 
     if (oldContent) {

@@ -23,13 +23,13 @@ export interface Theme {
 
 const lightTheme: Theme = {
   bashBorder: '#ff0087',
-  claude: '#5f97cd',
-  koding: '#0000ff',
-  permission: '#5769f7',
+  claude: '#7aff59ff',
+  koding: '#9dff00ff',
+  permission: '#e9c61aff',
   secondaryBorder: '#999',
   text: '#000',
   secondaryText: '#666',
-  suggestion: '#5769f7',
+  suggestion: '#32e98aff',
   success: '#2c7a39',
   error: '#ab2b3f',
   warning: '#966c1e',
