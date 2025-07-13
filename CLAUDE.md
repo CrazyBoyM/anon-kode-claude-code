@@ -57,13 +57,14 @@ Find the full path to `kode` with `which kode` then add to Claude Desktop config
 
 ### Tool System Architecture
 
-The application uses a comprehensive tool system in `src/tools/` with 15 core tools:
+The application uses a comprehensive tool system in `src/tools/` with 18 core tools:
 
-**File Operations**: FileReadTool, FileWriteTool, FileEditTool, lsTool, GlobTool, GrepTool
+**File Operations**: FileReadTool, FileWriteTool, FileEditTool, MultiEditTool, lsTool, GlobTool, GrepTool
 **Shell Execution**: BashTool (with persistent session and security restrictions)
 **Advanced AI**: AgentTool (launches sub-tasks), ArchitectTool (project planning)
+**Task Management**: TodoReadTool, TodoWriteTool (with system reminder integration)
 **Notebook Support**: NotebookReadTool, NotebookEditTool (Jupyter integration)
-**Memory System**: MemoryReadTool, MemoryWriteTool
+**Memory System**: MemoryReadTool, MemoryWriteTool (agent-specific memory storage)
 **Integration**: MCPTool (Model Context Protocol), ThinkTool, StickerRequestTool
 
 #### Tool Implementation Pattern
@@ -82,7 +83,22 @@ Tools implement a comprehensive interface with these key methods:
 - `inputSchema` (Zod), `validateInput()` - Input validation
 - `call()` - Main execution (async generator for progressive results)
 - `renderToolUseMessage()`, `renderToolResultMessage()` - Terminal UI rendering
-- `needsPermissions()`, `isReadOnly()` - Security and permission controls
+- `needsPermissions()`, `isReadOnly()`, `isConcurrencySafe()` - Security and execution controls
+
+#### Task Management System
+The TodoReadTool and TodoWriteTool provide sophisticated task tracking:
+- **State Management**: Pending, in_progress, completed status with single in-progress constraint
+- **Priority Levels**: High, medium, low priority classification
+- **Validation**: Duplicate ID detection and business rule enforcement
+- **System Integration**: Automatic system reminder generation for task workflows
+- **Persistence**: JSON-based storage in `src/utils/todoStorage.ts`
+
+#### Context Engineering and System Reminders
+Advanced context awareness through `src/services/systemReminder.ts`:
+- **File Freshness Tracking**: Monitors file read/write operations to detect stale context
+- **System Reminder Injection**: Automatically adds relevant context reminders to conversations
+- **Agent Coordination**: Tracks multi-agent workflows and provides context sharing
+- **Event-Driven Architecture**: Tool usage triggers contextual reminders for improved AI awareness
 
 ### Model Configuration
 
@@ -106,6 +122,9 @@ Robust permission system in `src/permissions.ts` and `src/components/permissions
 - `src/utils/sessionState.ts` - Session-specific conversation state
 - `src/history.ts` - Command history management and persistence
 - `src/messages.ts` - Message state management for conversation flow
+- `src/utils/todoStorage.ts` - Persistent task management with JSON storage
+- `src/utils/agentStorage.ts` - Agent coordination and memory management
+- `src/services/fileFreshness.ts` - File modification tracking for context freshness
 
 ### UI Architecture
 
@@ -122,6 +141,25 @@ Built with React/Ink for terminal rendering:
 - MCP (Model Context Protocol) server capability for Claude Desktop integration
 - Built-in cost tracking, usage monitoring, and conversation logging
 - Sentry integration for error tracking and debugging
+- Advanced task management with system reminder integration for improved AI workflow awareness
+- File freshness tracking and context engineering for optimal AI performance
+- Multi-agent coordination system with shared memory and context passing
+
+## Important Development Patterns
+
+### Todo Usage
+When working with complex tasks, use the TodoWriteTool to track progress:
+- Always mark only ONE task as `in_progress` at a time
+- Use clear, actionable task descriptions
+- Update status immediately after completing work
+- Leverage priority levels for task organization
+
+### System Reminders
+The system automatically injects contextual reminders based on:
+- File modification patterns and stale context detection
+- Tool usage patterns and workflow optimization opportunities
+- Task management state changes and coordination needs
+- Agent interaction patterns and memory sharing requirements
 
 ## Checkpoint Records
 

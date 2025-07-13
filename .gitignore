@@ -175,3 +175,6 @@ dist
 .DS_Store
 source-maps/
 cli.mjs
+
+# Claude project instructions
+CLAUDE.md
