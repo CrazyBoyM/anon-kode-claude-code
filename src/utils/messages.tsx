@@ -33,6 +33,83 @@ import { Spinner } from '../components/Spinner'
 import { BashTool } from '../tools/BashTool/BashTool'
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources/index.mjs'
 
+// Import dynamic content processing functions
+async function executeBashCommands(content: string): Promise<string> {
+  const bashCommandRegex = /!\`([^`]+)\`/g
+  const matches = [...content.matchAll(bashCommandRegex)]
+
+  if (matches.length === 0) {
+    return content
+  }
+
+  let result = content
+
+  for (const match of matches) {
+    const fullMatch = match[0]
+    const command = match[1].trim()
+
+    try {
+      const parts = command.split(/\s+/)
+      const cmd = parts[0]
+      const args = parts.slice(1)
+
+      const { execFile } = await import('child_process')
+      const { promisify } = await import('util')
+      const execFileAsync = promisify(execFile)
+
+      const { stdout, stderr } = await execFileAsync(cmd, args, {
+        timeout: 5000,
+        encoding: 'utf8',
+        cwd: getCwd(),
+      })
+
+      const output = stdout.trim() || stderr.trim() || '(no output)'
+      result = result.replace(fullMatch, output)
+    } catch (error) {
+      console.warn(`Failed to execute bash command "${command}":`, error)
+      result = result.replace(fullMatch, `(error executing: ${command})`)
+    }
+  }
+
+  return result
+}
+
+async function resolveFileReferences(content: string): Promise<string> {
+  const fileRefRegex = /@([a-zA-Z0-9/._-]+(?:\.[a-zA-Z0-9]+)?)/g
+  const matches = [...content.matchAll(fileRefRegex)]
+
+  if (matches.length === 0) {
+    return content
+  }
+
+  let result = content
+
+  for (const match of matches) {
+    const fullMatch = match[0]
+    const filePath = match[1]
+
+    try {
+      const { join } = await import('path')
+      const { existsSync, readFileSync } = await import('fs')
+
+      const fullPath = join(getCwd(), filePath)
+
+      if (existsSync(fullPath)) {
+        const fileContent = readFileSync(fullPath, { encoding: 'utf-8' })
+        const formattedContent = `\n\n## File: ${filePath}\n\`\`\`\n${fileContent}\n\`\`\`\n`
+        result = result.replace(fullMatch, formattedContent)
+      } else {
+        result = result.replace(fullMatch, `(file not found: ${filePath})`)
+      }
+    } catch (error) {
+      console.warn(`Failed to read file "${filePath}":`, error)
+      result = result.replace(fullMatch, `(error reading: ${filePath})`)
+    }
+  }
+
+  return result
+}
+
 export const INTERRUPT_MESSAGE = '[Request interrupted by user]'
 export const INTERRUPT_MESSAGE_FOR_TOOL_USE =
   '[Request interrupted by user for tool use]'
@@ -340,11 +417,30 @@ export async function processUserInput(
       },
     ])
   } else {
-    userMessage = createUserMessage(
+    let processedInput =
       isKodingRequest && kodingContextInfo
         ? `${kodingContextInfo}\n\n${input}`
-        : input,
-    )
+        : input
+
+    // Process dynamic content for custom commands with ! and @ prefixes
+    if (input.includes('!`') || input.includes('@')) {
+      try {
+        // Execute bash commands if present
+        if (input.includes('!`')) {
+          processedInput = await executeBashCommands(processedInput)
+        }
+
+        // Resolve file references if present
+        if (input.includes('@')) {
+          processedInput = await resolveFileReferences(processedInput)
+        }
+      } catch (error) {
+        console.warn('Dynamic content processing failed:', error)
+        // Continue with original input if processing fails
+      }
+    }
+
+    userMessage = createUserMessage(processedInput)
   }
 
   // Add the Koding flag to the message if needed
@@ -419,53 +515,27 @@ async function getMessagesForSlashCommand(
         }
       }
       case 'prompt': {
+        // For custom commands, process them naturally instead of wrapping in command-contents
         const prompt = await command.getPromptForCommand(args)
-        return prompt.map(_ => {
-          if (typeof _.content === 'string') {
-            return {
-              message: {
-                role: _.role,
-                content: `<command-message>${command.userFacingName()} is ${command.progressMessage}…</command-message>
-                    <command-name>${command.userFacingName()}</command-name>
-                    <command-args>${args}</command-args>
-                    <command-contents>${JSON.stringify(
-                      _.content,
-                      null,
-                      2,
-                    )}</command-contents>`,
-              },
-              type: 'user',
-              uuid: randomUUID(),
-            }
+        return prompt.map(msg => {
+          // Create a normal user message from the custom command content
+          const userMessage = createUserMessage(
+            typeof msg.content === 'string'
+              ? msg.content
+              : msg.content
+                  .map(block => (block.type === 'text' ? block.text : ''))
+                  .join('\n'),
+          )
+
+          // Add metadata for tracking but don't wrap in special tags
+          userMessage.options = {
+            ...userMessage.options,
+            isCustomCommand: true,
+            commandName: command.userFacingName(),
+            commandArgs: args,
           }
-          return {
-            message: {
-              role: _.role,
-              content: _.content.map(_ => {
-                switch (_.type) {
-                  case 'text':
-                    return {
-                      ..._,
-                      text: `
-                        <command-message>${command.userFacingName()} is ${command.progressMessage}…</command-message>
-                        <command-name>${command.userFacingName()}</command-name>
-                        <command-args>${args}</command-args>
-                        <command-contents>${JSON.stringify(
-                          _,
-                          null,
-                          2,
-                        )}</command-contents>
-                      `,
-                    }
-                  // TODO: These won't render properly
-                  default:
-                    return _
-                }
-              }),
-            },
-            type: 'user',
-            uuid: randomUUID(),
-          }
+
+          return userMessage
         })
       }
     }
