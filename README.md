@@ -1,4 +1,4 @@
-# Any Kode
+# Last Kode
 
 Terminal-based AI coding assistant that provides Claude-like functionality through any OpenAI-compatible API.
 
@@ -12,11 +12,13 @@ Terminal-based AI coding assistant that provides Claude-like functionality throu
 - 🔧 **Workflow Automation** - Handles entire development workflows
 - 🤖 **Multi-Model Support** - Works with any OpenAI-compatible API
 - 🎯 **15 Built-in Tools** - File operations, shell execution, notebooks, and more
+- 💾 **Smart Checkpoints** - Intelligent project state management and recovery
+- 🌿 **Worktree Workflows** - Isolated development environments for features
 
 ## Installation
 
 ```bash
-npm install -g any-kode
+npm install -g last-kode
 cd your-project
 kode
 ```
@@ -29,14 +31,14 @@ kode
 
 ## MCP Server Integration
 
-Use Any Kode as a Model Context Protocol server with Claude Desktop:
+Use Last Kode as a Model Context Protocol server with Claude Desktop:
 
 1. Find the full path: `which kode`
 2. Add to Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "any-kode": {
+    "last-kode": {
       "command": "/path/to/kode",
       "args": ["mcp", "serve"]
     }
@@ -63,10 +65,28 @@ NODE_ENV=development pnpm run dev --verbose --debug
 ## Architecture
 
 - **React/Ink** - Terminal UI framework
-- **15 Core Tools** - File operations, shell execution, AI workflows
+- **18 Core Tools** - File operations, shell execution, AI workflows, checkpoints
 - **Multi-Provider** - Anthropic Claude, OpenAI, custom endpoints
 - **TypeScript** - Full type safety throughout
 - **MCP Compatible** - Model Context Protocol integration
+- **Smart Workflows** - Checkpoint system and worktree management
+
+## Advanced Workflows
+
+Last Kode provides sophisticated development workflow management:
+
+### 🎯 Checkpoint System
+Intelligent project state management with automatic analysis and recovery:
+- **`/checkpoint-save`** - Smart analysis and state preservation
+- **`/checkpoint-restore`** - Natural language version recovery
+
+### 🌿 Worktree Development
+Isolated development environments for feature work:
+- **`/worktree-create`** - Task-driven environment creation
+- **`/worktree-review`** - Comprehensive code quality assessment
+- **`/worktree-merge`** - Safe integration with quality gates
+
+📚 **[Complete Workflow Documentation](docs/commands/README.md)**
 
 ## Bug Reports
 
@@ -80,8 +100,8 @@ Submit bugs directly from the app using `/bug` - it will open GitHub with pre-fi
 
 ## Repository
 
-- **Homepage**: [https://github.com/shareAI-lab/any-kode](https://github.com/shareAI-lab/any-kode)
-- **Issues**: [https://github.com/shareAI-lab/any-kode/issues](https://github.com/shareAI-lab/any-kode/issues)
+- **Homepage**: [https://github.com/shareAI-lab/last-kode](https://github.com/shareAI-lab/last-kode)
+- **Issues**: [https://github.com/shareAI-lab/last-kode/issues](https://github.com/shareAI-lab/last-kode/issues)
 
 ## License
 
