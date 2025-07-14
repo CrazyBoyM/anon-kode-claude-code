@@ -1,8 +1,8 @@
-# Last Kode
+# Any Kode
 
 Terminal-based AI coding assistant that provides Claude-like functionality through any OpenAI-compatible API.
 
-![Last Kode Demo](https://github.com/user-attachments/assets/7a9253a7-8bb0-40d5-a3f3-5e6096d7c789)
+![Any Kode Demo](https://github.com/user-attachments/assets/7a9253a7-8bb0-40d5-a3f3-5e6096d7c789)
 
 ## Features
 
@@ -16,7 +16,7 @@ Terminal-based AI coding assistant that provides Claude-like functionality throu
 ## Installation
 
 ```bash
-npm install -g last-kode
+npm install -g any-kode
 cd your-project
 kode
 ```
@@ -29,14 +29,14 @@ kode
 
 ## MCP Server Integration
 
-Use Last Kode as a Model Context Protocol server with Claude Desktop:
+Use Any Kode as a Model Context Protocol server with Claude Desktop:
 
 1. Find the full path: `which kode`
 2. Add to Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "last-kode": {
+    "any-kode": {
       "command": "/path/to/kode",
       "args": ["mcp", "serve"]
     }
@@ -80,8 +80,8 @@ Submit bugs directly from the app using `/bug` - it will open GitHub with pre-fi
 
 ## Repository
 
-- **Homepage**: [https://github.com/ripgrim/last-kode](https://github.com/ripgrim/last-kode)
-- **Issues**: [https://github.com/ripgrim/last-kode/issues](https://github.com/ripgrim/last-kode/issues)
+- **Homepage**: [https://github.com/shareAI-lab/any-kode](https://github.com/shareAI-lab/any-kode)
+- **Issues**: [https://github.com/shareAI-lab/any-kode/issues](https://github.com/shareAI-lab/any-kode/issues)
 
 ## License
 

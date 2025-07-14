@@ -1,5 +1,5 @@
 // Request Context for perfect state isolation
-// Based on official Claude Code patterns
+// Based on official Any Kode patterns
 
 export interface RequestContext {
   id: string
