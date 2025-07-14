@@ -17,6 +17,7 @@ import pr_comments from './commands/pr_comments'
 import releaseNotes from './commands/release-notes'
 import review from './commands/review'
 import terminalSetup from './commands/terminalSetup'
+import worktreeMerge from './commands/worktree_merge'
 import { Tool, ToolUseContext } from './Tool'
 import resume from './commands/resume'
 import { getMCPCommands } from './services/mcpClient'
@@ -91,6 +92,7 @@ const COMMANDS = memoize((): Command[] => [
   bug,
   review,
   terminalSetup,
+  worktreeMerge,
   ...(isAnthropicAuthEnabled() ? [logout, login()] : []),
   ...INTERNAL_ONLY_COMMANDS,
 ])
