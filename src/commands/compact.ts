@@ -8,6 +8,35 @@ import {
 } from '../utils/messages.js'
 import { getCodeStyle } from '../utils/style'
 import { clearTerminal } from '../utils/terminal'
+import { resetFileFreshnessSession } from '../services/fileFreshness'
+
+const COMPRESSION_PROMPT = `Please provide a comprehensive summary of our conversation structured as follows:
+
+## Technical Context
+Development environment, tools, frameworks, and configurations in use. Programming languages, libraries, and technical constraints. File structure, directory organization, and project architecture.
+
+## Project Overview  
+Main project goals, features, and scope. Key components, modules, and their relationships. Data models, APIs, and integration patterns.
+
+## Code Changes
+Files created, modified, or analyzed during our conversation. Specific code implementations, functions, and algorithms added. Configuration changes and structural modifications.
+
+## Debugging & Issues
+Problems encountered and their root causes. Solutions implemented and their effectiveness. Error messages, logs, and diagnostic information.
+
+## Current Status
+What we just completed successfully. Current state of the codebase and any ongoing work. Test results, validation steps, and verification performed.
+
+## Pending Tasks
+Immediate next steps and priorities. Planned features, improvements, and refactoring. Known issues, technical debt, and areas needing attention.
+
+## User Preferences
+Coding style, formatting, and organizational preferences. Communication patterns and feedback style. Tool choices and workflow preferences.
+
+## Key Decisions
+Important technical decisions made and their rationale. Alternative approaches considered and why they were rejected. Trade-offs accepted and their implications.
+
+Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.`
 
 const compact = {
   type: 'local',
@@ -23,17 +52,15 @@ const compact = {
       setForkConvoWithMessagesOnTheNextRender,
     },
   ) {
-    // Get existing messages before clearing
     const messages = getMessagesGetter()()
 
-    // Add summary request as a new message
-    const summaryRequest = createUserMessage(
-      "Provide a detailed but concise summary of our conversation above. Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.",
-    )
+    const summaryRequest = createUserMessage(COMPRESSION_PROMPT)
 
     const summaryResponse = await querySonnet(
       normalizeMessagesForAPI([...messages, summaryRequest]),
-      ['You are a helpful AI assistant tasked with summarizing conversations.'],
+      [
+        'You are a helpful AI assistant tasked with creating comprehensive conversation summaries that preserve all essential context for continuing development work.',
+      ],
       0,
       tools,
       abortController.signal,
@@ -44,7 +71,6 @@ const compact = {
       },
     )
 
-    // Extract summary from response, throw if we can't get it
     const content = summaryResponse.message.content
     const summary =
       typeof content === 'string'
@@ -61,10 +87,6 @@ const compact = {
       throw new Error(summary)
     }
 
-    // Substitute low token usage info so that the context-size UI warning goes
-    // away. The actual numbers don't matter too much: `countTokens` checks the
-    // most recent assistant message for usage numbers, so this estimate will
-    // be overridden quickly.
     summaryResponse.message.usage = {
       input_tokens: 0,
       output_tokens: summaryResponse.message.usage.output_tokens,
@@ -72,19 +94,19 @@ const compact = {
       cache_read_input_tokens: 0,
     }
 
-    // Clear screen and messages
     await clearTerminal()
     getMessagesSetter()([])
     setForkConvoWithMessagesOnTheNextRender([
       createUserMessage(
-        `Use the /compact command to clear the conversation history, and start a new conversation with the summary in context.`,
+        `Context has been compressed using structured 8-section algorithm. All essential information has been preserved for seamless continuation.`,
       ),
       summaryResponse,
     ])
     getContext.cache.clear?.()
     getCodeStyle.cache.clear?.()
+    resetFileFreshnessSession()
 
-    return '' // not used, just for typesafety. TODO: avoid this hack
+    return ''
   },
   userFacingName() {
     return 'compact'

@@ -31,6 +31,7 @@ import {
 import { createToolExecutionController } from './utils/toolExecutionController'
 import { BashTool } from './tools/BashTool/BashTool'
 import { getCwd } from './utils/state'
+import { checkAutoCompact } from './utils/autoCompactCore'
 
 // Extended ToolUseContext for query functions
 interface ExtendedToolUseContext extends ToolUseContext {
@@ -156,6 +157,16 @@ export async function* query(
     m2: AssistantMessage,
   ) => Promise<BinaryFeedbackResult>,
 ): AsyncGenerator<Message, void> {
+  // Auto-compact integration point - mirrors original Claude Code line 54054
+  // Checks token usage before processing and compresses if threshold exceeded
+  const { messages: processedMessages, wasCompacted } = await checkAutoCompact(
+    messages,
+    toolUseContext,
+  )
+  if (wasCompacted) {
+    messages = processedMessages
+  }
+
   const fullSystemPrompt = formatSystemPromptWithContext(
     systemPrompt,
     context,

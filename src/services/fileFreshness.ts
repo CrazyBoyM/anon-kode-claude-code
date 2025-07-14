@@ -166,6 +166,43 @@ class FileFreshnessService {
   public isFileTracked(filePath: string): boolean {
     return this.state.readTimestamps.has(filePath)
   }
+
+  /**
+   * Retrieves files prioritized for recovery during auto-compact
+   * Implements qL6 algorithm: filter valid files, sort by recency, limit count
+   * Used to maintain development context when compressing conversation history
+   */
+  public getImportantFiles(maxFiles: number = 5): Array<{
+    path: string
+    timestamp: number
+    size: number
+  }> {
+    return Array.from(this.state.readTimestamps.entries())
+      .map(([path, info]) => ({
+        path,
+        timestamp: info.lastRead,
+        size: info.size,
+      }))
+      .filter(file => this.isValidForRecovery(file.path))
+      .sort((a, b) => b.timestamp - a.timestamp) // Newest first
+      .slice(0, maxFiles)
+  }
+
+  /**
+   * Filters files suitable for auto-recovery based on path patterns
+   * Excludes build artifacts, dependencies, and temporary files
+   * Mirrors LL6 filtering logic from original Claude Code
+   */
+  private isValidForRecovery(filePath: string): boolean {
+    return (
+      !filePath.includes('node_modules') &&
+      !filePath.includes('.git') &&
+      !filePath.startsWith('/tmp') &&
+      !filePath.includes('.cache') &&
+      !filePath.includes('dist/') &&
+      !filePath.includes('build/')
+    )
+  }
 }
 
 export const fileFreshnessService = new FileFreshnessService()
