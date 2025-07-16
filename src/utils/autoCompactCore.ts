@@ -18,13 +18,20 @@ import { getGlobalConfig } from './config'
 const AUTO_COMPACT_THRESHOLD_RATIO = 0.92
 
 /**
- * Retrieves the maximum context tokens from model configuration
- * Falls back to 200k if not configured in smallModelContextLength
+ * Retrieves the context length for the large model that should execute compression
+ * Uses largeModelContextLength since compression is a complex task requiring a capable model
+ * Falls back to smallModelContextLength if large model is not configured
  */
-async function getMaxContextTokens(): Promise<number> {
+async function getCompressionModelContextLimit(): Promise<number> {
   try {
     const config = await getGlobalConfig()
-    return config.smallModelContextLength || 200_000
+    // Use large model context length for compression tasks
+    // Fall back to small model if large model is not configured
+    return (
+      config.largeModelContextLength ||
+      config.smallModelContextLength ||
+      200_000
+    )
   } catch (error) {
     return 200_000
   }
@@ -59,11 +66,11 @@ Important technical decisions made and their rationale. Alternative approaches c
 Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.`
 
 /**
- * Calculates context usage thresholds based on current model configuration
- * Determines when auto-compact should trigger and provides usage statistics
+ * Calculates context usage thresholds based on the large model's capabilities
+ * Uses the large model context length since compression tasks require a capable model
  */
 async function calculateThresholds(tokenCount: number) {
-  const contextLimit = await getMaxContextTokens()
+  const contextLimit = await getCompressionModelContextLimit()
   const autoCompactThreshold = contextLimit * AUTO_COMPACT_THRESHOLD_RATIO
 
   return {
@@ -75,8 +82,8 @@ async function calculateThresholds(tokenCount: number) {
 }
 
 /**
- * Determines if automatic compression should trigger based on token usage
- * Requires minimum message count to avoid compressing trivial conversations
+ * Determines if auto-compact should trigger based on token usage
+ * Uses the large model context limit since compression requires a capable model
  */
 async function shouldAutoCompact(messages: Message[]): Promise<boolean> {
   if (messages.length < 3) return false
@@ -92,9 +99,11 @@ async function shouldAutoCompact(messages: Message[]): Promise<boolean> {
  *
  * This function is called before each query to check if the conversation
  * has grown too large and needs compression. When triggered, it:
- * - Generates a structured summary of the conversation
+ * - Generates a structured summary of the conversation using the large model
  * - Recovers recently accessed files to maintain development context
  * - Resets conversation state while preserving essential information
+ *
+ * Uses the large model for compression tasks to ensure high-quality summaries
  *
  * @param messages Current conversation messages
  * @param toolUseContext Execution context with model and tool configuration
@@ -127,18 +136,22 @@ export async function checkAutoCompact(
 }
 
 /**
- * Executes the conversation compression process
+ * Executes the conversation compression process using the large model
  *
- * This function mirrors the manual /compact command but is optimized for
- * automatic execution. It generates a comprehensive summary using the
- * structured 8-section format and automatically recovers important files
- * to maintain development context.
+ * This function generates a comprehensive summary using the large model
+ * which is better suited for complex summarization tasks. It also
+ * automatically recovers important files to maintain development context.
  */
 async function executeAutoCompact(
   messages: Message[],
   toolUseContext: any,
 ): Promise<Message[]> {
   const summaryRequest = createUserMessage(COMPRESSION_PROMPT)
+
+  // Get the large model for compression task
+  const config = await getGlobalConfig()
+  const compressionModel =
+    config.largeModelName || toolUseContext.options.slowAndCapableModel
 
   const summaryResponse = await querySonnet(
     normalizeMessagesForAPI([...messages, summaryRequest]),
@@ -150,7 +163,7 @@ async function executeAutoCompact(
     toolUseContext.abortController.signal,
     {
       dangerouslySkipPermissions: false,
-      model: toolUseContext.options.slowAndCapableModel,
+      model: compressionModel,
       prependCLISysprompt: true,
     },
   )
