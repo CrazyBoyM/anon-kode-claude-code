@@ -2,22 +2,19 @@ import { readTextContent } from './file'
 import { fileFreshnessService } from '../services/fileFreshness'
 
 /**
- * File recovery configuration for auto-compact feature
- * These limits ensure recovered files don't overwhelm the compressed context
+ * File recovery constants matching original Claude Code implementation
+ * HL6: Maximum files to recover (hard limit)
+ * UL6: Maximum tokens per individual file
+ * zL6: Total token budget across all recovered files
  */
 const MAX_FILES_TO_RECOVER = 5
 const MAX_TOKENS_PER_FILE = 10_000
 const MAX_TOTAL_FILE_TOKENS = 50_000
 
 /**
- * Selects and reads recently accessed files for context recovery
- *
- * During auto-compact, this function preserves development context by:
- * - Selecting files based on recent access patterns
- * - Enforcing token budgets to prevent context bloat
- * - Truncating large files while preserving essential content
- *
- * @returns Array of file data with content, token counts, and truncation flags
+ * Selects and reads important files based on recency and token budget
+ * Mirrors the qL6 file selection algorithm from original Claude Code
+ * Enforces strict token limits to prevent context overflow during auto-compact
  */
 export async function selectAndReadFiles(): Promise<
   Array<{

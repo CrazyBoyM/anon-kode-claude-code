@@ -1,0 +1,14 @@
+{
+  "currentCheckpoint": "cp-20250715-050945-feat",
+  "timestamp": "2025-01-15T05:09:45.000Z",
+  "branch": "feature-context-compression",
+  "commitHash": "8052ac032e1453869275823c795a740b4bff5df7",
+  "description": "Automatic context compression with file recovery implementation",
+  "quickAccess": {
+    "metadataPath": ".checkpoint/checkpoints/cp-20250715-050945-feat/metadata.json",
+    "analysisPath": ".checkpoint/checkpoints/cp-20250715-050945-feat/analysis.json",
+    "gitStatePath": ".checkpoint/checkpoints/cp-20250715-050945-feat/git-state.json",
+    "filesPath": ".checkpoint/checkpoints/cp-20250715-050945-feat/files/"
+  },
+  "restoreCommand": "/checkpoint-restore cp-20250715-050945-feat"
+}

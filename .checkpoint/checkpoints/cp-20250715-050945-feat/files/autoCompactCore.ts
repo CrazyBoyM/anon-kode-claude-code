@@ -12,8 +12,8 @@ import { addLineNumbers } from './file'
 import { getGlobalConfig } from './config'
 
 /**
- * Threshold ratio for triggering automatic context compression
- * When context usage exceeds 92% of the model's limit, auto-compact activates
+ * Auto-compact threshold ratio matching original Claude Code implementation
+ * Corresponds to Y01 constant in reverse-engineered source (line 53580)
  */
 const AUTO_COMPACT_THRESHOLD_RATIO = 0.92
 
@@ -59,8 +59,8 @@ Important technical decisions made and their rationale. Alternative approaches c
 Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.`
 
 /**
- * Calculates context usage thresholds based on current model configuration
- * Determines when auto-compact should trigger and provides usage statistics
+ * Calculates context usage thresholds based on model configuration
+ * Mirrors original W01 function from Claude Code implementation
  */
 async function calculateThresholds(tokenCount: number) {
   const contextLimit = await getMaxContextTokens()
@@ -75,8 +75,8 @@ async function calculateThresholds(tokenCount: number) {
 }
 
 /**
- * Determines if automatic compression should trigger based on token usage
- * Requires minimum message count to avoid compressing trivial conversations
+ * Determines if auto-compact should trigger based on token usage
+ * Mirrors original OL6 function with minimum message count safeguard
  */
 async function shouldAutoCompact(messages: Message[]): Promise<boolean> {
   if (messages.length < 3) return false
@@ -88,17 +88,9 @@ async function shouldAutoCompact(messages: Message[]): Promise<boolean> {
 }
 
 /**
- * Main entry point for automatic context compression
- *
- * This function is called before each query to check if the conversation
- * has grown too large and needs compression. When triggered, it:
- * - Generates a structured summary of the conversation
- * - Recovers recently accessed files to maintain development context
- * - Resets conversation state while preserving essential information
- *
- * @param messages Current conversation messages
- * @param toolUseContext Execution context with model and tool configuration
- * @returns Updated messages (compressed if needed) and compression status
+ * Main auto-compact entry point, mirrors original fT2 function
+ * Executes compression when token threshold is exceeded, with graceful fallback
+ * This function is called at line 161 in query.ts, matching original integration point
  */
 export async function checkAutoCompact(
   messages: Message[],
@@ -127,12 +119,9 @@ export async function checkAutoCompact(
 }
 
 /**
- * Executes the conversation compression process
- *
- * This function mirrors the manual /compact command but is optimized for
- * automatic execution. It generates a comprehensive summary using the
- * structured 8-section format and automatically recovers important files
- * to maintain development context.
+ * Executes the compression process programmatically
+ * Mirrors the manual /compact command but optimized for automatic execution
+ * Includes file recovery mechanism based on qL6 algorithm from original implementation
  */
 async function executeAutoCompact(
   messages: Message[],
@@ -176,8 +165,8 @@ async function executeAutoCompact(
     cache_read_input_tokens: 0,
   }
 
-  // Automatic file recovery: preserve recently accessed development files
-  // This maintains coding context even after conversation compression
+  // File recovery mechanism: automatically recover recently accessed files
+  // This mirrors the qL6 file selection algorithm from original Claude Code
   const recoveredFiles = await selectAndReadFiles()
 
   const compactedMessages = [
@@ -187,8 +176,8 @@ async function executeAutoCompact(
     summaryResponse,
   ]
 
-  // Append recovered files to maintain development workflow continuity
-  // Files are prioritized by recency and importance, with strict token limits
+  // Append recovered files to maintain development context
+  // Files are selected by recency and importance, with token budget enforcement
   if (recoveredFiles.length > 0) {
     for (const file of recoveredFiles) {
       const contentWithLines = addLineNumbers({

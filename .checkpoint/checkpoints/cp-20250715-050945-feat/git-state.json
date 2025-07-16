@@ -1,0 +1,54 @@
+{
+  "captureTimestamp": "2025-01-15T05:09:45.000Z",
+  "repository": {
+    "workingDirectory": "/Users/baicai/Desktop/Claude_code/lastkode-feature-context-compression",
+    "isGitRepo": true,
+    "currentBranch": "feature-context-compression",
+    "remoteUrl": null,
+    "lastCommit": {
+      "hash": "8052ac032e1453869275823c795a740b4bff5df7",
+      "shortHash": "8052ac0",
+      "message": "feat: implement automatic context compression with file recovery",
+      "author": "Claude",
+      "timestamp": "2025-01-15T05:09:45.000Z"
+    }
+  },
+  "workingTreeStatus": {
+    "clean": true,
+    "untrackedFiles": [
+      ".checkpoint/",
+      ".claude/"
+    ],
+    "modifiedFiles": [],
+    "stagedFiles": [],
+    "conflicts": []
+  },
+  "branchInfo": {
+    "currentBranch": "feature-context-compression", 
+    "upstreamBranch": null,
+    "divergedFromMain": true,
+    "commitsAhead": 0,
+    "commitsBehind": 0
+  },
+  "recentCommits": [
+    {
+      "hash": "8052ac032e1453869275823c795a740b4bff5df7",
+      "message": "feat: implement automatic context compression with file recovery",
+      "timestamp": "2025-01-15T05:09:45.000Z"
+    },
+    {
+      "hash": "24fd7ee",
+      "message": "last-kode: feature integration consolidation (checkpoint)",
+      "timestamp": "previous"
+    },
+    {
+      "hash": "ccb304c", 
+      "message": "merge: integrate kimi-model-support feature and resolve conflicts",
+      "timestamp": "previous"
+    }
+  ],
+  "stashInfo": {
+    "stashCount": 0,
+    "stashList": []
+  }
+}

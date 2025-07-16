@@ -168,9 +168,14 @@ class FileFreshnessService {
   }
 
   /**
-   * Retrieves files prioritized for recovery during auto-compact
-   * Implements qL6 algorithm: filter valid files, sort by recency, limit count
-   * Used to maintain development context when compressing conversation history
+   * Retrieves files prioritized for recovery during conversation compression
+   *
+   * Selects recently accessed files based on:
+   * - File access recency (most recent first)
+   * - File type relevance (excludes dependencies, build artifacts)
+   * - Development workflow importance
+   *
+   * Used to maintain coding context when conversation history is compressed
    */
   public getImportantFiles(maxFiles: number = 5): Array<{
     path: string
@@ -189,9 +194,12 @@ class FileFreshnessService {
   }
 
   /**
-   * Filters files suitable for auto-recovery based on path patterns
-   * Excludes build artifacts, dependencies, and temporary files
-   * Mirrors LL6 filtering logic from original Claude Code
+   * Determines which files are suitable for automatic recovery
+   *
+   * Excludes files that are typically not relevant for development context:
+   * - Build artifacts and generated files
+   * - Dependencies and cached files
+   * - Temporary files and system directories
    */
   private isValidForRecovery(filePath: string): boolean {
     return (
