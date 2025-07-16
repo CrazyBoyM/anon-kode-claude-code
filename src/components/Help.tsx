@@ -3,6 +3,7 @@ import { PRODUCT_COMMAND, PRODUCT_NAME } from '../constants/product'
 import {
   getCustomCommandDirectories,
   hasCustomCommands,
+  type CustomCommandWithScope,
 } from '../services/customCommands'
 import * as React from 'react'
 import { Box, Text, useInput } from 'ink'
@@ -25,7 +26,7 @@ export function Help({
   )
   const customCommands = filteredCommands.filter(
     cmd => cmd.type === 'prompt' && !builtInCommands.includes(cmd),
-  )
+  ) as CustomCommandWithScope[]
   const [count, setCount] = React.useState(0)
 
   React.useEffect(() => {
@@ -148,10 +149,10 @@ export function Help({
                 Custom commands loaded from:
               </Text>
               <Text color={theme.secondaryText}>
-                • {getCustomCommandDirectories().user}
+                • {getCustomCommandDirectories().user} (user: prefix)
               </Text>
               <Text color={theme.secondaryText}>
-                • {getCustomCommandDirectories().project}
+                • {getCustomCommandDirectories().project} (project: prefix)
               </Text>
             </Box>
           ) : (
@@ -160,10 +161,10 @@ export function Help({
                 Create custom commands by adding .md files to:
               </Text>
               <Text color={theme.secondaryText}>
-                • {getCustomCommandDirectories().user} (global)
+                • {getCustomCommandDirectories().user} (user: prefix)
               </Text>
               <Text color={theme.secondaryText}>
-                • {getCustomCommandDirectories().project} (project-specific)
+                • {getCustomCommandDirectories().project} (project: prefix)
               </Text>
             </Box>
           )}

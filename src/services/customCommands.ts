@@ -117,6 +117,10 @@ export interface CustomCommandFrontmatter {
   'allowed-tools'?: string[]
 }
 
+export interface CustomCommandWithScope extends Command {
+  scope?: 'user' | 'project'
+}
+
 export interface CustomCommandFile {
   frontmatter: CustomCommandFrontmatter
   content: string
@@ -246,53 +250,58 @@ function createCustomCommand(
   content: string,
   filePath: string,
   baseDir: string,
-): Command | null {
+): CustomCommandWithScope | null {
   // Extract command name with namespace support
   const relativePath = filePath.replace(baseDir + '/', '')
   const pathParts = relativePath.split('/')
   const fileName = pathParts[pathParts.length - 1].replace('.md', '')
 
-  // Create namespace if command is in subdirectory
-  let name: string
-  if (pathParts.length > 1) {
-    const namespace = pathParts.slice(0, -1).join(':')
-    name = frontmatter.name || `${namespace}:${fileName}`
+  // Determine scope based on directory
+  const userCommandsDir = join(homedir(), '.claude', 'commands')
+  const scope: 'user' | 'project' = baseDir === userCommandsDir ? 'user' : 'project'
+  const prefix = scope === 'user' ? 'user' : 'project'
+
+  // Create proper command name with prefix
+  let finalName: string
+  if (frontmatter.name) {
+    // If frontmatter specifies name, use it but ensure it has proper prefix
+    finalName = frontmatter.name.startsWith(`${prefix}:`) ? frontmatter.name : `${prefix}:${frontmatter.name}`
   } else {
-    name = frontmatter.name || fileName
+    // Generate name from file path
+    if (pathParts.length > 1) {
+      const namespace = pathParts.slice(0, -1).join(':')
+      finalName = `${prefix}:${namespace}:${fileName}`
+    } else {
+      finalName = `${prefix}:${fileName}`
+    }
   }
 
-  const description = frontmatter.description || `Custom command: ${name}`
+  const description = frontmatter.description || `Custom command: ${finalName}`
   const enabled = frontmatter.enabled !== false // Default to true
   const hidden = frontmatter.hidden === true // Default to false
   const aliases = frontmatter.aliases || []
-  const progressMessage = frontmatter.progressMessage || `Running ${name}...`
+  const progressMessage = frontmatter.progressMessage || `Running ${finalName}...`
   const argNames = frontmatter.argNames
 
-  if (!name) {
+  if (!finalName) {
     console.warn(`Custom command file ${filePath} has no name, skipping`)
     return null
   }
 
-  const command: Command = {
+  const command: CustomCommandWithScope = {
     type: 'prompt',
-    name,
+    name: finalName,
     description,
     isEnabled: enabled,
     isHidden: hidden,
     aliases,
     progressMessage,
     argNames,
+    scope,
     userFacingName(): string {
-      return name
+      return finalName
     },
     async getPromptForCommand(args: string): Promise<MessageParam[]> {
-      // Validate allowed tools first
-      if (!validateAllowedTools(frontmatter['allowed-tools'])) {
-        throw new Error(
-          'Command execution not allowed due to tool restrictions',
-        )
-      }
-
       let prompt = content.trim()
 
       // NOTE: Dynamic content processing (! and @) should be done at execution time
@@ -322,6 +331,13 @@ function createCustomCommand(
         prompt += `\n\nAdditional context: ${args}`
       }
 
+      // Step 4: Add allowed-tools restrictions to the prompt
+      const allowedTools = frontmatter['allowed-tools']
+      if (allowedTools && Array.isArray(allowedTools) && allowedTools.length > 0) {
+        const allowedToolsStr = allowedTools.join(', ')
+        prompt += `\n\nIMPORTANT: You are restricted to using only these tools: ${allowedToolsStr}. Do not use any other tools even if they might be helpful for the task.`
+      }
+
       return [
         {
           role: 'user',
@@ -338,7 +354,7 @@ function createCustomCommand(
  * Load custom commands from .claude/commands/ directories
  */
 export const loadCustomCommands = memoize(
-  async (): Promise<Command[]> => {
+  async (): Promise<CustomCommandWithScope[]> => {
     const userCommandsDir = join(homedir(), '.claude', 'commands')
     const projectCommandsDir = join(getCwd(), '.claude', 'commands')
 
@@ -378,7 +394,7 @@ export const loadCustomCommands = memoize(
       })
 
       // Parse files and create command objects
-      const commands: Command[] = []
+      const commands: CustomCommandWithScope[] = []
 
       // Process project files
       for (const filePath of projectFiles) {
@@ -454,6 +470,14 @@ export const loadCustomCommands = memoize(
     return `${cwd}:${existsSync(userDir)}:${existsSync(projectDir)}:${Date.now()}`
   },
 )
+
+/**
+ * Clear the custom commands cache to force reload
+ */
+export const reloadCustomCommands = (): void => {
+  loadCustomCommands.cache.clear()
+  console.log('Custom commands cache cleared. Commands will be reloaded on next use.')
+}
 
 /**
  * Get custom command directories for help/info purposes

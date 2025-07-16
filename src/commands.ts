@@ -14,6 +14,7 @@ import mcp from './commands/mcp'
 import * as model from './commands/model'
 import onboarding from './commands/onboarding'
 import pr_comments from './commands/pr_comments'
+import refreshCommands from './commands/refreshCommands'
 import releaseNotes from './commands/release-notes'
 import review from './commands/review'
 import terminalSetup from './commands/terminalSetup'
@@ -88,6 +89,7 @@ const COMMANDS = memoize((): Command[] => [
   model,
   onboarding,
   pr_comments,
+  refreshCommands,
   releaseNotes,
   bug,
   review,
