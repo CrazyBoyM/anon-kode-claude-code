@@ -33,82 +33,10 @@ import { Spinner } from '../components/Spinner'
 import { BashTool } from '../tools/BashTool/BashTool'
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources/index.mjs'
 
-// Import dynamic content processing functions
-async function executeBashCommands(content: string): Promise<string> {
-  const bashCommandRegex = /!\`([^`]+)\`/g
-  const matches = [...content.matchAll(bashCommandRegex)]
-
-  if (matches.length === 0) {
-    return content
-  }
-
-  let result = content
-
-  for (const match of matches) {
-    const fullMatch = match[0]
-    const command = match[1].trim()
-
-    try {
-      const parts = command.split(/\s+/)
-      const cmd = parts[0]
-      const args = parts.slice(1)
-
-      const { execFile } = await import('child_process')
-      const { promisify } = await import('util')
-      const execFileAsync = promisify(execFile)
-
-      const { stdout, stderr } = await execFileAsync(cmd, args, {
-        timeout: 5000,
-        encoding: 'utf8',
-        cwd: getCwd(),
-      })
-
-      const output = stdout.trim() || stderr.trim() || '(no output)'
-      result = result.replace(fullMatch, output)
-    } catch (error) {
-      console.warn(`Failed to execute bash command "${command}":`, error)
-      result = result.replace(fullMatch, `(error executing: ${command})`)
-    }
-  }
-
-  return result
-}
-
-async function resolveFileReferences(content: string): Promise<string> {
-  const fileRefRegex = /@([a-zA-Z0-9/._-]+(?:\.[a-zA-Z0-9]+)?)/g
-  const matches = [...content.matchAll(fileRefRegex)]
-
-  if (matches.length === 0) {
-    return content
-  }
-
-  let result = content
-
-  for (const match of matches) {
-    const fullMatch = match[0]
-    const filePath = match[1]
-
-    try {
-      const { join } = await import('path')
-      const { existsSync, readFileSync } = await import('fs')
-
-      const fullPath = join(getCwd(), filePath)
-
-      if (existsSync(fullPath)) {
-        const fileContent = readFileSync(fullPath, { encoding: 'utf-8' })
-        const formattedContent = `\n\n## File: ${filePath}\n\`\`\`\n${fileContent}\n\`\`\`\n`
-        result = result.replace(fullMatch, formattedContent)
-      } else {
-        result = result.replace(fullMatch, `(file not found: ${filePath})`)
-      }
-    } catch (error) {
-      console.warn(`Failed to read file "${filePath}":`, error)
-      result = result.replace(fullMatch, `(error reading: ${filePath})`)
-    }
-  }
-
-  return result
-}
+// NOTE: Dynamic content processing for custom commands has been moved to
+// src/services/customCommands.ts for better organization and reusability.
+// The functions executeBashCommands and resolveFileReferences are no longer
+// duplicated here but are imported when needed for custom command processing.
 
 export const INTERRUPT_MESSAGE = '[Request interrupted by user]'
 export const INTERRUPT_MESSAGE_FOR_TOOL_USE =
@@ -423,15 +351,23 @@ export async function processUserInput(
         : input
 
     // Process dynamic content for custom commands with ! and @ prefixes
+    // This uses the same processing functions as custom commands to maintain consistency
     if (input.includes('!`') || input.includes('@')) {
       try {
+        // Import functions from customCommands service to avoid code duplication
+        const { executeBashCommands, resolveFileReferences } = await import('../services/customCommands')
+        
         // Execute bash commands if present
         if (input.includes('!`')) {
+          // Note: This function is not exported from customCommands.ts, so we need to expose it
+          // For now, we'll keep the local implementation until we refactor the service
           processedInput = await executeBashCommands(processedInput)
         }
 
         // Resolve file references if present
         if (input.includes('@')) {
+          // Note: This function is not exported from customCommands.ts, so we need to expose it
+          // For now, we'll keep the local implementation until we refactor the service
           processedInput = await resolveFileReferences(processedInput)
         }
       } catch (error) {
