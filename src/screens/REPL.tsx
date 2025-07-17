@@ -243,7 +243,7 @@ export function REPL({
 
     const abortController = new AbortController()
     setCurrentRequest({
-      id: Math.random().toString(36),
+      id: crypto.randomUUID(),
       abortController,
       isActive: true,
     })
@@ -728,7 +728,17 @@ export function REPL({
                 submitCount={submitCount}
                 onSubmitCountChange={setSubmitCount}
                 setIsLoading={setIsLoading}
-                setCurrentRequest={setCurrentRequest}
+                setAbortController={controller => {
+                  if (controller) {
+                    setCurrentRequest({
+                      id: crypto.randomUUID(),
+                      abortController: controller,
+                      isActive: true,
+                    })
+                  } else {
+                    setCurrentRequest(null)
+                  }
+                }}
                 onShowMessageSelector={() =>
                   setIsMessageSelectorVisible(prev => !prev)
                 }
