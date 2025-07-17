@@ -242,7 +242,11 @@ export function REPL({
     setIsLoading(true)
 
     const abortController = new AbortController()
-    setAbortController(abortController)
+    setCurrentRequest({
+      id: Math.random().toString(36),
+      abortController,
+      isActive: true,
+    })
 
     const model = await getSlowAndCapableModel()
     const newMessages = await processUserInput(
@@ -280,7 +284,7 @@ export function REPL({
       // or if the user input was an invalid slash command.
       const lastMessage = newMessages[newMessages.length - 1]!
       if (lastMessage.type === 'assistant') {
-        setAbortController(null)
+        setCurrentRequest(null)
         setIsLoading(false)
         return
       }
@@ -332,15 +336,17 @@ export function REPL({
 
   async function onQuery(newMessages: MessageType[]) {
     try {
-      // 🔧 Core fix: create completely new request context for thorough state isolation
-      const newRequest = {
-        id: crypto.randomUUID(),
-        abortController: new AbortController(),
-        isActive: true,
+      // Use the existing currentRequest if it exists, otherwise create a new one
+      let requestToUse = currentRequest
+      if (!requestToUse || !requestToUse.isActive) {
+        requestToUse = {
+          id: crypto.randomUUID(),
+          abortController: new AbortController(),
+          isActive: true,
+        }
+        setCurrentRequest(requestToUse)
       }
-
-      // Immediately set new request context to ensure state isolation
-      setCurrentRequest(newRequest)
+      
       // Check if this is a Koding request based on last message's options
       const isKodingRequest =
         newMessages.length > 0 &&
@@ -365,7 +371,7 @@ export function REPL({
         // updateTerminalTitle(lastMessage.message.content)
       }
       if (lastMessage.type === 'assistant') {
-        setAbortController(null)
+        setCurrentRequest(null)
         setIsLoading(false)
         return
       }
@@ -401,14 +407,14 @@ export function REPL({
           },
           messageId: getLastAssistantMessageId([...messages, lastMessage]),
           readFileTimestamps: readFileTimestamps.current,
-          abortController: newRequest.abortController,
+          abortController: requestToUse.abortController,
           setToolJSX,
-          requestId: newRequest.id, // 🔧 Add request ID for state isolation
+          requestId: requestToUse.id, // 🔧 Add request ID for state isolation
         },
         getBinaryFeedbackResponse,
       )) {
         // Check if this specific request was cancelled before processing message
-        if (!newRequest.isActive || newRequest.abortController.signal.aborted) {
+        if (!requestToUse.isActive || requestToUse.abortController.signal.aborted) {
           break
         }
 
@@ -722,10 +728,7 @@ export function REPL({
                 submitCount={submitCount}
                 onSubmitCountChange={setSubmitCount}
                 setIsLoading={setIsLoading}
-                setAbortController={controller => {
-                  // This prop is now deprecated - request context management is handled internally
-                  // Only used for cleanup purposes
-                }}
+                setCurrentRequest={setCurrentRequest}
                 onShowMessageSelector={() =>
                   setIsMessageSelectorVisible(prev => !prev)
                 }

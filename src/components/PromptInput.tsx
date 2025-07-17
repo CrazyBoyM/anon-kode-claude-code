@@ -87,7 +87,7 @@ type Props = {
   submitCount: number
   onSubmitCountChange: (updater: (prev: number) => number) => void
   setIsLoading: (isLoading: boolean) => void
-  setAbortController: (abortController: AbortController | null) => void
+  setCurrentRequest: (request: { id: string; abortController: AbortController; isActive: boolean } | null) => void
   onShowMessageSelector: () => void
   setForkConvoWithMessagesOnTheNextRender: (
     forkConvoWithMessages: Message[],
@@ -121,7 +121,7 @@ function PromptInput({
   submitCount,
   onSubmitCountChange,
   setIsLoading,
-  setAbortController,
+  setCurrentRequest,
   onShowMessageSelector,
   setForkConvoWithMessagesOnTheNextRender,
   readFileTimestamps,
@@ -228,7 +228,6 @@ function PromptInput({
         // 🔧 Fix Koding mode: clean up previous state
         if (abortController) {
           abortController.abort()
-          setAbortController(null)
         }
         setIsLoading(false)
         await new Promise(resolve => setTimeout(resolve, 0))
@@ -337,7 +336,6 @@ function PromptInput({
     // Clean up previous AbortController (if exists)
     if (abortController) {
       abortController.abort()
-      setAbortController(null)
     }
 
     // Reset loading state (prevent race conditions)
@@ -346,9 +344,20 @@ function PromptInput({
     // Brief delay to ensure state cleanup is complete, then start new request
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    // Set loading state - AbortController now created in onQuery
+    // Set loading state and create new request context immediately
     setIsLoading(true)
     const model = await getSlowAndCapableModel()
+    
+    // Create new request context before processUserInput to ensure local commands can be cancelled
+    const newRequest = {
+      id: crypto.randomUUID(),
+      abortController: new AbortController(),
+      isActive: true,
+    }
+    
+    // Set the current request immediately so useCancelRequest can access it
+    setCurrentRequest(newRequest)
+    
     const messages = await processUserInput(
       finalInput,
       mode,
@@ -364,7 +373,7 @@ function PromptInput({
           maxThinkingTokens: 0,
         },
         messageId: undefined,
-        abortController: abortController || new AbortController(), // Temporary controller, actual one created in onQuery
+        abortController: newRequest.abortController,
         readFileTimestamps,
         setForkConvoWithMessagesOnTheNextRender,
       },
