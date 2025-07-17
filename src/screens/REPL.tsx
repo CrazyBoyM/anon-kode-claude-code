@@ -728,17 +728,7 @@ export function REPL({
                 submitCount={submitCount}
                 onSubmitCountChange={setSubmitCount}
                 setIsLoading={setIsLoading}
-                setAbortController={controller => {
-                  if (controller) {
-                    setCurrentRequest({
-                      id: crypto.randomUUID(),
-                      abortController: controller,
-                      isActive: true,
-                    })
-                  } else {
-                    setCurrentRequest(null)
-                  }
-                }}
+                setCurrentRequest={setCurrentRequest}
                 onShowMessageSelector={() =>
                   setIsMessageSelectorVisible(prev => !prev)
                 }
