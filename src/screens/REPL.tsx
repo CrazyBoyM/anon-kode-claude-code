@@ -242,7 +242,11 @@ export function REPL({
     setIsLoading(true)
 
     const abortController = new AbortController()
-    setAbortController(abortController)
+    setCurrentRequest({
+      id: crypto.randomUUID(),
+      abortController,
+      isActive: true,
+    })
 
     const model = await getSlowAndCapableModel()
     const newMessages = await processUserInput(
@@ -280,7 +284,7 @@ export function REPL({
       // or if the user input was an invalid slash command.
       const lastMessage = newMessages[newMessages.length - 1]!
       if (lastMessage.type === 'assistant') {
-        setAbortController(null)
+        setCurrentRequest(null)
         setIsLoading(false)
         return
       }
@@ -365,7 +369,7 @@ export function REPL({
         // updateTerminalTitle(lastMessage.message.content)
       }
       if (lastMessage.type === 'assistant') {
-        setAbortController(null)
+        setCurrentRequest(null)
         setIsLoading(false)
         return
       }
@@ -723,8 +727,15 @@ export function REPL({
                 onSubmitCountChange={setSubmitCount}
                 setIsLoading={setIsLoading}
                 setAbortController={controller => {
-                  // This prop is now deprecated - request context management is handled internally
-                  // Only used for cleanup purposes
+                  if (controller) {
+                    setCurrentRequest({
+                      id: crypto.randomUUID(),
+                      abortController: controller,
+                      isActive: true,
+                    })
+                  } else {
+                    setCurrentRequest(null)
+                  }
                 }}
                 onShowMessageSelector={() =>
                   setIsMessageSelectorVisible(prev => !prev)
