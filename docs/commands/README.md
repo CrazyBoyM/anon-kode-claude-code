@@ -11,12 +11,14 @@
 ### Worktree 工作流
 - **`/worktree-create`** - 创建功能开发环境
 - **`/worktree-review`** - 自我审查开发成果
-- **`/worktree-merge`** - 安全集成到主分支
+- **`/worktree-merge`** - 直接合并到主分支
+- **`/worktree-pr`** - 创建 GitHub PR
 
 ## 快速开始
 
 ### 基础工作流
 
+#### 选项1：直接合并流程
 ```bash
 # 1. 保存当前状态
 /checkpoint-save
@@ -25,15 +27,36 @@
 /worktree-create user-authentication
 
 # 3. 在新环境中开发...
-cd ../lastkode-user-authentication
+cd ../$(basename $(pwd))-user-authentication
 
 # 4. 开发完成后审查
 /worktree-review user-authentication
 
-# 5. 合并回主分支
+# 5. 直接合并到主分支
 /worktree-merge user-authentication
 
 # 6. 保存里程碑
+/checkpoint-save
+```
+
+#### 选项2：PR 协作流程
+```bash
+# 1. 保存当前状态
+/checkpoint-save
+
+# 2. 开始新功能开发
+/worktree-create user-authentication
+
+# 3. 在新环境中开发...
+cd ../$(basename $(pwd))-user-authentication
+
+# 4. 开发完成后审查
+/worktree-review user-authentication
+
+# 5. 创建 GitHub PR
+/worktree-pr user-authentication
+
+# 6. 团队审查并合并后保存里程碑
 /checkpoint-save
 ```
 
@@ -106,7 +129,7 @@ Worktree 系统提供隔离的功能开发环境。[查看完整文档](./worktr
 /worktree-create quick-fix
 
 # 2. 快速开发和测试
-# (在 ../lastkode-quick-fix 中工作)
+# (在 ../$(basename $(pwd))-quick-fix 中工作)
 
 # 3. 完成后直接合并
 /worktree-merge quick-fix
@@ -170,9 +193,9 @@ Worktree 系统提供隔离的功能开发环境。[查看完整文档](./worktr
 /worktree-create feature-c
 
 # 2. 在不同目录中并行开发
-# Terminal 1: cd ../lastkode-feature-a
-# Terminal 2: cd ../lastkode-feature-b  
-# Terminal 3: cd ../lastkode-feature-c
+# Terminal 1: cd ../$(basename $(pwd))-feature-a
+# Terminal 2: cd ../$(basename $(pwd))-feature-b  
+# Terminal 3: cd ../$(basename $(pwd))-feature-c
 
 # 3. 分别审查和合并
 /worktree-review feature-a && /worktree-merge feature-a
@@ -343,7 +366,7 @@ echo "开始功能开发: $FEATURE_NAME"
 # 2. 创建worktree  
 /worktree-create $FEATURE_NAME
 
-echo "请在 ../lastkode-$FEATURE_NAME 中开发功能"
+echo "请在 ../$(basename $(pwd))-$FEATURE_NAME 中开发功能"
 echo "完成后运行: /worktree-review $FEATURE_NAME"
 ```
 

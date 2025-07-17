@@ -22,7 +22,9 @@ Worktree 系统让你可以：
 ### 三阶段工作流
 1. **Create**: 创建带有任务规划的 worktree
 2. **Review**: 自我审查开发成果
-3. **Merge**: 安全集成回主分支
+3. **Integration**: 集成到主分支
+   - **Direct**: 使用 `/worktree-merge` 直接合并
+   - **PR**: 使用 `/worktree-pr` 创建 GitHub PR
 
 ## 核心命令
 
@@ -162,6 +164,57 @@ Worktree 系统让你可以：
 - 阻塞问题: 无
 ```
 
+### `/worktree-pr` - 创建 Pull Request
+
+基于任务计划对开发成果进行全面审查后创建 GitHub PR。
+
+**功能特性**：
+- 📋 **任务验证**：与 worktree-merge 相同的任务完成度检查
+- 🔍 **代码质量审查**：完全相同的深度技术评估
+- 🏗️ **架构分析**：一致性和设计原则检查
+- 📊 **评分系统**：客观的质量评分
+- 🚀 **PR 创建**：自动创建包含任务分析的 GitHub PR
+
+**使用方法**：
+```bash
+/worktree-pr [branch-name-or-path]
+```
+
+**与 worktree-merge 的区别**：
+- **相同逻辑**：任务验证、代码审查、未提交更改处理完全一致
+- **不同结果**：创建 PR 而非直接合并，保持 worktree 活跃状态
+
+**PR 创建流程**：
+1. **任务完成验证**：检查与原始计划的对比
+2. **全面代码审查**：使用与 worktree-merge 相同的审查逻辑
+3. **未提交更改处理**：自动提交以防数据丢失
+4. **PR 创建**：推送分支并创建包含任务分析的 GitHub PR
+5. **团队协作**：保持 worktree 活跃，便于处理反馈
+
+**PR 模板示例**：
+```
+## Task Completion Summary
+**Original Goal**: 实现用户认证系统
+**Completed**: 注册/登录功能、JWT管理、权限控制
+**Success Rate**: 85% (5/6项任务完成)
+
+## Pre-PR Review Results
+- Code Quality: 🟢 优秀
+- Implementation: 🟢 完整
+- Architecture: 🟢 良好
+- Integration: 🟢 无风险
+
+## Uncommitted Changes Handling
+- Status: Auto-committed
+- Action: Auto-committed with message: "完成认证系统核心功能"
+- Files: 8个文件已自动提交
+
+## Next Steps
+- 团队审查 PR
+- 根据反馈在同一分支继续提交
+- 批准后合并（可使用 /pr-merge 命令）
+```
+
 ### `/worktree-merge` - 安全集成
 
 安全地将 worktree 的工作集成回主分支。
@@ -226,6 +279,8 @@ Worktree 系统让你可以：
 
 ## Worktree 生命周期
 
+### 直接合并流程
+
 ```mermaid
 graph TD
     A[/worktree-create feature] --> B[交互式任务规划]
@@ -242,6 +297,28 @@ graph TD
     K --> L[回到主分支]
 ```
 
+### PR 协作流程
+
+```mermaid
+graph TD
+    A[/worktree-create feature] --> B[交互式任务规划]
+    B --> C[生成任务文件]
+    C --> D[创建worktree和分支]
+    D --> E[功能开发]
+    E --> F[/worktree-review]
+    F --> G{质量检查}
+    G -->|通过| H[/worktree-pr]
+    G -->|问题| I[继续开发]
+    I --> E
+    H --> J[创建GitHub PR]
+    J --> K[团队审查]
+    K -->|需要修改| L[在worktree中修改]
+    L --> M[推送更新]
+    M --> K
+    K -->|批准| N[PR合并]
+    N --> O[清理worktree]
+```
+
 ## 目录结构
 
 Worktree 系统创建的目录结构：
@@ -250,10 +327,10 @@ Worktree 系统创建的目录结构：
 project-root/
 ├── main-project/           # 主项目目录
 └── worktrees/             # worktree目录
-    ├── lastkode-user-auth/     # 功能开发worktree
+    ├── $(basename $(pwd))-user-auth/     # 功能开发worktree
     │   ├── worktree_tasks_todo.md  # 任务计划文件
     │   └── ...                # 项目文件副本
-    └── lastkode-theme-system/
+    └── $(basename $(pwd))-theme-system/
         ├── worktree_tasks_todo.md
         └── ...
 ```
@@ -358,7 +435,7 @@ A: 任务文件在 worktree 目录中，检查是否误删或移动了目录。
 git branch -a
 
 # 2. 重新创建worktree
-git worktree add ../lastkode-feature feature-branch
+git worktree add ../$(basename $(pwd))-feature feature-branch
 
 # 3. 恢复任务文件（如果有备份）
 ```
@@ -382,9 +459,9 @@ git reset backup-before-merge-feature-123456
 /worktree-create api-optimization
 
 # 分别在不同目录中开发
-cd ../lastkode-auth-system    # 开发认证
-cd ../lastkode-ui-theme       # 开发主题
-cd ../lastkode-api-optimization # 优化API
+cd ../$(basename $(pwd))-auth-system    # 开发认证
+cd ../$(basename $(pwd))-ui-theme       # 开发主题
+cd ../$(basename $(pwd))-api-optimization # 优化API
 ```
 
 ### 长期分支管理
@@ -406,7 +483,7 @@ cd ../lastkode-api-optimization # 优化API
 /worktree-merge experimental-refactor
 
 # 如果实验失败，直接删除worktree
-rm -rf ../lastkode-experimental-refactor
+rm -rf ../$(basename $(pwd))-experimental-refactor
 git worktree prune
 git branch -d experimental-refactor
 ```

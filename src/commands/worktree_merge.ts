@@ -1,6 +1,6 @@
 import { execSync } from 'child_process'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { join, basename } from 'path'
 import type { Command } from '../commands'
 
 const worktreeMerge: Command = {
@@ -19,11 +19,12 @@ const worktreeMerge: Command = {
       return `❌ Usage: /worktree_merge <worktree-name>
 
 Example: /worktree_merge feature-theme-system
-This will merge the worktree at ../lastkode-<worktree-name>`
+This will merge the worktree at ../<current-project-name>-<worktree-name>`
     }
 
     const currentDir = process.cwd()
-    const worktreePath = join(currentDir, '..', `lastkode-${worktreeName}`)
+    const projectName = basename(process.cwd())
+    const worktreePath = join(currentDir, '..', `${projectName}-${worktreeName}`)
 
     try {
       // Step 1: Check if worktree exists
