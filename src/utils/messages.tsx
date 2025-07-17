@@ -432,6 +432,7 @@ async function getMessagesForSlashCommand(
         <command-args>${args}</command-args>`)
 
         try {
+          // Use the context's abortController for local commands
           const result = await command.call(args, context)
 
           return [

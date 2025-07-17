@@ -166,6 +166,51 @@ class FileFreshnessService {
   public isFileTracked(filePath: string): boolean {
     return this.state.readTimestamps.has(filePath)
   }
+
+  /**
+   * Retrieves files prioritized for recovery during conversation compression
+   *
+   * Selects recently accessed files based on:
+   * - File access recency (most recent first)
+   * - File type relevance (excludes dependencies, build artifacts)
+   * - Development workflow importance
+   *
+   * Used to maintain coding context when conversation history is compressed
+   */
+  public getImportantFiles(maxFiles: number = 5): Array<{
+    path: string
+    timestamp: number
+    size: number
+  }> {
+    return Array.from(this.state.readTimestamps.entries())
+      .map(([path, info]) => ({
+        path,
+        timestamp: info.lastRead,
+        size: info.size,
+      }))
+      .filter(file => this.isValidForRecovery(file.path))
+      .sort((a, b) => b.timestamp - a.timestamp) // Newest first
+      .slice(0, maxFiles)
+  }
+
+  /**
+   * Determines which files are suitable for automatic recovery
+   *
+   * Excludes files that are typically not relevant for development context:
+   * - Build artifacts and generated files
+   * - Dependencies and cached files
+   * - Temporary files and system directories
+   */
+  private isValidForRecovery(filePath: string): boolean {
+    return (
+      !filePath.includes('node_modules') &&
+      !filePath.includes('.git') &&
+      !filePath.startsWith('/tmp') &&
+      !filePath.includes('.cache') &&
+      !filePath.includes('dist/') &&
+      !filePath.includes('build/')
+    )
+  }
 }
 
 export const fileFreshnessService = new FileFreshnessService()
