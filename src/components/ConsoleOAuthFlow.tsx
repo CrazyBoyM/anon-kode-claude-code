@@ -161,7 +161,7 @@ export function ConsoleOAuthFlow({ onDone }: Props): React.ReactNode {
 
       if (apiKey) {
         setOAuthStatus({ state: 'success', apiKey })
-        sendNotification({ message: 'Claude Code login successful' })
+        sendNotification({ message: 'Any Kode login successful' })
       } else {
         setOAuthStatus({
           state: 'error',
@@ -244,7 +244,7 @@ export function ConsoleOAuthFlow({ onDone }: Props): React.ReactNode {
           <Box flexDirection="column" gap={1}>
             <Box>
               <SimpleSpinner />
-              <Text>Creating API key for Claude Code…</Text>
+              <Text>Creating API key for Any Kode…</Text>
             </Box>
           </Box>
         )

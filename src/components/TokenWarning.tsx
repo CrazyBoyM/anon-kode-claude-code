@@ -6,9 +6,9 @@ type Props = {
   tokenUsage: number
 }
 
-const MAX_TOKENS = 190_000 // leave wiggle room for /compact
-export const WARNING_THRESHOLD = MAX_TOKENS * 0.6 // 60%
-const ERROR_THRESHOLD = MAX_TOKENS * 0.8 // 80%
+const MAX_TOKENS = 190_000
+export const WARNING_THRESHOLD = MAX_TOKENS * 0.6
+const ERROR_THRESHOLD = MAX_TOKENS * 0.8
 
 export function TokenWarning({ tokenUsage }: Props): React.ReactNode {
   const theme = getTheme()

@@ -32,6 +32,7 @@ import {
 import { createToolExecutionController } from './utils/toolExecutionController'
 import { BashTool } from './tools/BashTool/BashTool'
 import { getCwd } from './utils/state'
+import { checkAutoCompact } from './utils/autoCompactCore'
 
 // Extended ToolUseContext for query functions
 interface ExtendedToolUseContext extends ToolUseContext {
@@ -157,13 +158,22 @@ export async function* query(
     m2: AssistantMessage,
   ) => Promise<BinaryFeedbackResult>,
 ): AsyncGenerator<Message, void> {
+  // Automatic context compression check - prevents token limit overflow
+  // Compresses conversation when usage exceeds 92% of model's context window
+  const { messages: processedMessages, wasCompacted } = await checkAutoCompact(
+    messages,
+    toolUseContext,
+  )
+  if (wasCompacted) {
+    messages = processedMessages
+  }
+
   const { systemPrompt: fullSystemPrompt, reminders } =
     formatSystemPromptWithContext(systemPrompt, context, toolUseContext.agentId)
 
   // Emit session startup event to notify all reminder services
   emitReminderEvent('session:startup', {
     agentId: toolUseContext.agentId,
-    context,
     messages: messages.length,
     timestamp: Date.now(),
   })

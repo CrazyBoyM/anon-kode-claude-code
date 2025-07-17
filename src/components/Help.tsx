@@ -1,10 +1,26 @@
 import { Command } from '../commands'
 import { PRODUCT_COMMAND, PRODUCT_NAME } from '../constants/product'
+import {
+  getCustomCommandDirectories,
+  hasCustomCommands,
+  type CustomCommandWithScope,
+} from '../services/customCommands'
 import * as React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../utils/theme'
 import { PressEnterToContinue } from './PressEnterToContinue'
 import { MACRO } from '../constants/macros'
+
+/**
+ * Help Component - Interactive help system with progressive disclosure
+ * 
+ * This component provides a comprehensive help interface that progressively
+ * reveals information to avoid overwhelming users. It categorizes commands
+ * into built-in and custom types, providing clear guidance on usage.
+ * 
+ * The progressive disclosure pattern (count-based) ensures users can absorb
+ * information at their own pace while maintaining a responsive interface.
+ */
 export function Help({
   commands,
   onClose,
@@ -15,9 +31,24 @@ export function Help({
   const theme = getTheme()
   const moreHelp = `Learn more at: ${MACRO.README_URL}`
 
+  // Filter out hidden commands from the help display
   const filteredCommands = commands.filter(cmd => !cmd.isHidden)
+  
+  // Separate built-in commands from custom commands
+  // Built-in commands are those that don't follow the custom command patterns
+  const builtInCommands = filteredCommands.filter(
+    cmd => !cmd.name.startsWith('project:') && !cmd.name.startsWith('user:'),
+  )
+  
+  // Custom commands are those with project: or user: prefixes
+  const customCommands = filteredCommands.filter(
+    cmd => cmd.name.startsWith('project:') || cmd.name.startsWith('user:'),
+  ) as CustomCommandWithScope[]
+
+  // Progressive disclosure state for managing information flow
   const [count, setCount] = React.useState(0)
 
+  // Timer-based progressive disclosure to prevent information overload
   React.useEffect(() => {
     const timer = setTimeout(() => {
       if (count < 3) {
@@ -28,6 +59,7 @@ export function Help({
     return () => clearTimeout(timer)
   }, [count])
 
+  // Handle Enter key to close help
   useInput((_, key) => {
     if (key.return) onClose()
   })
@@ -98,16 +130,79 @@ export function Help({
 
       {count >= 3 && (
         <Box marginTop={1} flexDirection="column">
-          <Text bold>Interactive Mode Commands:</Text>
+          <Text bold>Built-in Commands:</Text>
 
           <Box flexDirection="column">
-            {filteredCommands.map((cmd, i) => (
+            {builtInCommands.map((cmd, i) => (
               <Box key={i} marginLeft={1}>
                 <Text bold>{`/${cmd.name}`}</Text>
                 <Text> - {cmd.description}</Text>
               </Box>
             ))}
           </Box>
+
+          {customCommands.length > 0 && (
+            <>
+              <Box marginTop={1}>
+                <Text bold>Custom Commands:</Text>
+              </Box>
+
+              <Box flexDirection="column">
+                {customCommands.map((cmd, i) => (
+                  <Box key={i} marginLeft={1}>
+                    <Text bold color={theme.claude}>{`/${cmd.name}`}</Text>
+                    <Text> - {cmd.description}</Text>
+                    {cmd.aliases && cmd.aliases.length > 0 && (
+                      <Text color={theme.secondaryText}>
+                        {' '}
+                        (aliases: {cmd.aliases.join(', ')})
+                      </Text>
+                    )}
+                    {/* Show scope indicator for debugging */}
+                    {cmd.scope && (
+                      <Text color={theme.secondaryText}>
+                        {' '}
+                        [{cmd.scope}]
+                      </Text>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            </>
+          )}
+
+          {/* Show custom command directory information */}
+          {hasCustomCommands() || customCommands.length > 0 ? (
+            <Box marginTop={1}>
+              <Text color={theme.secondaryText}>
+                Custom commands loaded from:
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().user} (user: prefix)
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().project} (project: prefix)
+              </Text>
+              <Text color={theme.secondaryText}>
+                Use /refresh-commands to reload after changes
+              </Text>
+            </Box>
+          ) : (
+            <Box marginTop={1}>
+              <Text color={theme.secondaryText}>
+                Create custom commands by adding .md files to:
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().user} (user: prefix)
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().project} (project: prefix)
+              </Text>
+              <Text color={theme.secondaryText}>
+                Use /refresh-commands to reload after creation
+              </Text>
+            </Box>
+          )}
         </Box>
       )}
 

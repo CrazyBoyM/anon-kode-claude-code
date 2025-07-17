@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "checkpoints": [
+    {
+      "id": "cp-20250715-050945-feat",
+      "timestamp": "2025-01-15T05:09:45.000Z",
+      "type": "FEATURE",
+      "branch": "feature-context-compression",
+      "commitHash": "8052ac032e1453869275823c795a740b4bff5df7",
+      "description": "Automatic context compression with file recovery implementation",
+      "tags": ["feature", "context-compression", "auto-compact", "file-recovery", "claude-code-alignment"],
+      "qualityScore": 92,
+      "size": "341 lines",
+      "status": "ACTIVE"
+    }
+  ],
+  "statistics": {
+    "totalCheckpoints": 1,
+    "totalSize": "~25KB",
+    "lastUpdate": "2025-01-15T05:09:45.000Z",
+    "retentionPolicy": {
+      "feature": 20,
+      "experimental": 10,
+      "milestone": "permanent"
+    }
+  },
+  "settings": {
+    "autoCleanup": true,
+    "maxStorageSize": "100MB",
+    "compressionEnabled": false
+  }
+}

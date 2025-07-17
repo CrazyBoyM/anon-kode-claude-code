@@ -14,12 +14,15 @@ import mcp from './commands/mcp'
 import * as model from './commands/model'
 import onboarding from './commands/onboarding'
 import pr_comments from './commands/pr_comments'
+import refreshCommands from './commands/refreshCommands'
 import releaseNotes from './commands/release-notes'
 import review from './commands/review'
 import terminalSetup from './commands/terminalSetup'
+import worktreeMerge from './commands/worktree_merge'
 import { Tool, ToolUseContext } from './Tool'
 import resume from './commands/resume'
 import { getMCPCommands } from './services/mcpClient'
+import { loadCustomCommands } from './services/customCommands'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import { memoize } from 'lodash-es'
 import type { Message } from './query'
@@ -87,16 +90,25 @@ const COMMANDS = memoize((): Command[] => [
   model,
   onboarding,
   pr_comments,
+  refreshCommands,
   releaseNotes,
   bug,
   review,
   terminalSetup,
+  worktreeMerge,
   ...(isAnthropicAuthEnabled() ? [logout, login()] : []),
   ...INTERNAL_ONLY_COMMANDS,
 ])
 
 export const getCommands = memoize(async (): Promise<Command[]> => {
-  return [...(await getMCPCommands()), ...COMMANDS()].filter(_ => _.isEnabled)
+  const [mcpCommands, customCommands] = await Promise.all([
+    getMCPCommands(),
+    loadCustomCommands(),
+  ])
+
+  return [...mcpCommands, ...customCommands, ...COMMANDS()].filter(
+    _ => _.isEnabled,
+  )
 })
 
 export function hasCommand(commandName: string, commands: Command[]): boolean {

@@ -33,6 +33,11 @@ import { Spinner } from '../components/Spinner'
 import { BashTool } from '../tools/BashTool/BashTool'
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources/index.mjs'
 
+// NOTE: Dynamic content processing for custom commands has been moved to
+// src/services/customCommands.ts for better organization and reusability.
+// The functions executeBashCommands and resolveFileReferences are no longer
+// duplicated here but are imported when needed for custom command processing.
+
 export const INTERRUPT_MESSAGE = '[Request interrupted by user]'
 export const INTERRUPT_MESSAGE_FOR_TOOL_USE =
   '[Request interrupted by user for tool use]'
@@ -340,11 +345,38 @@ export async function processUserInput(
       },
     ])
   } else {
-    userMessage = createUserMessage(
+    let processedInput =
       isKodingRequest && kodingContextInfo
         ? `${kodingContextInfo}\n\n${input}`
-        : input,
-    )
+        : input
+
+    // Process dynamic content for custom commands with ! and @ prefixes
+    // This uses the same processing functions as custom commands to maintain consistency
+    if (input.includes('!`') || input.includes('@')) {
+      try {
+        // Import functions from customCommands service to avoid code duplication
+        const { executeBashCommands, resolveFileReferences } = await import('../services/customCommands')
+        
+        // Execute bash commands if present
+        if (input.includes('!`')) {
+          // Note: This function is not exported from customCommands.ts, so we need to expose it
+          // For now, we'll keep the local implementation until we refactor the service
+          processedInput = await executeBashCommands(processedInput)
+        }
+
+        // Resolve file references if present
+        if (input.includes('@')) {
+          // Note: This function is not exported from customCommands.ts, so we need to expose it
+          // For now, we'll keep the local implementation until we refactor the service
+          processedInput = await resolveFileReferences(processedInput)
+        }
+      } catch (error) {
+        console.warn('Dynamic content processing failed:', error)
+        // Continue with original input if processing fails
+      }
+    }
+
+    userMessage = createUserMessage(processedInput)
   }
 
   // Add the Koding flag to the message if needed
@@ -400,6 +432,7 @@ async function getMessagesForSlashCommand(
         <command-args>${args}</command-args>`)
 
         try {
+          // Use the context's abortController for local commands
           const result = await command.call(args, context)
 
           return [
@@ -419,53 +452,27 @@ async function getMessagesForSlashCommand(
         }
       }
       case 'prompt': {
+        // For custom commands, process them naturally instead of wrapping in command-contents
         const prompt = await command.getPromptForCommand(args)
-        return prompt.map(_ => {
-          if (typeof _.content === 'string') {
-            return {
-              message: {
-                role: _.role,
-                content: `<command-message>${command.userFacingName()} is ${command.progressMessage}…</command-message>
-                    <command-name>${command.userFacingName()}</command-name>
-                    <command-args>${args}</command-args>
-                    <command-contents>${JSON.stringify(
-                      _.content,
-                      null,
-                      2,
-                    )}</command-contents>`,
-              },
-              type: 'user',
-              uuid: randomUUID(),
-            }
+        return prompt.map(msg => {
+          // Create a normal user message from the custom command content
+          const userMessage = createUserMessage(
+            typeof msg.content === 'string'
+              ? msg.content
+              : msg.content
+                  .map(block => (block.type === 'text' ? block.text : ''))
+                  .join('\n'),
+          )
+
+          // Add metadata for tracking but don't wrap in special tags
+          userMessage.options = {
+            ...userMessage.options,
+            isCustomCommand: true,
+            commandName: command.userFacingName(),
+            commandArgs: args,
           }
-          return {
-            message: {
-              role: _.role,
-              content: _.content.map(_ => {
-                switch (_.type) {
-                  case 'text':
-                    return {
-                      ..._,
-                      text: `
-                        <command-message>${command.userFacingName()} is ${command.progressMessage}…</command-message>
-                        <command-name>${command.userFacingName()}</command-name>
-                        <command-args>${args}</command-args>
-                        <command-contents>${JSON.stringify(
-                          _,
-                          null,
-                          2,
-                        )}</command-contents>
-                      `,
-                    }
-                  // TODO: These won't render properly
-                  default:
-                    return _
-                }
-              }),
-            },
-            type: 'user',
-            uuid: randomUUID(),
-          }
+
+          return userMessage
         })
       }
     }

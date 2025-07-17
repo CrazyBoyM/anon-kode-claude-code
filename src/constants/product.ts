@@ -1,11 +1,11 @@
-export const PRODUCT_NAME = 'Last Kode'
-export const PRODUCT_URL = 'https://github.com/shareAI-lab/LastKode'
+export const PRODUCT_NAME = 'Any Kode'
+export const PRODUCT_URL = 'https://github.com/shareAI-lab/Anykode'
 export const PROJECT_FILE = 'Code_Context.md'
 export const PRODUCT_COMMAND = 'kode'
-export const CONFIG_BASE_DIR = '.lastkode'
-export const CONFIG_FILE = '.lastkode.json'
+export const CONFIG_BASE_DIR = '.anykode'
+export const CONFIG_FILE = '.anykode.json'
 export const GITHUB_ISSUES_REPO_URL =
-  'https://github.com/shareAI-lab/LastKode/issues'
+  'https://github.com/shareAI-lab/Anykode/issues'
 
 export const ASCII_LOGO = `
   _                     _       _  __              _        
