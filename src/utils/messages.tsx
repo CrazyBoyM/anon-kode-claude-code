@@ -355,8 +355,10 @@ export async function processUserInput(
     if (input.includes('!`') || input.includes('@')) {
       try {
         // Import functions from customCommands service to avoid code duplication
-        const { executeBashCommands, resolveFileReferences } = await import('../services/customCommands')
-        
+        const { executeBashCommands, resolveFileReferences } = await import(
+          '../services/customCommands'
+        )
+
         // Execute bash commands if present
         if (input.includes('!`')) {
           // Note: This function is not exported from customCommands.ts, so we need to expose it

@@ -24,7 +24,11 @@ This will merge the worktree at ../<current-project-name>-<worktree-name>`
 
     const currentDir = process.cwd()
     const projectName = basename(process.cwd())
-    const worktreePath = join(currentDir, '..', `${projectName}-${worktreeName}`)
+    const worktreePath = join(
+      currentDir,
+      '..',
+      `${projectName}-${worktreeName}`,
+    )
 
     try {
       // Step 1: Check if worktree exists

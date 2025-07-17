@@ -346,7 +346,7 @@ export function REPL({
         }
         setCurrentRequest(requestToUse)
       }
-      
+
       // Check if this is a Koding request based on last message's options
       const isKodingRequest =
         newMessages.length > 0 &&
@@ -414,7 +414,10 @@ export function REPL({
         getBinaryFeedbackResponse,
       )) {
         // Check if this specific request was cancelled before processing message
-        if (!requestToUse.isActive || requestToUse.abortController.signal.aborted) {
+        if (
+          !requestToUse.isActive ||
+          requestToUse.abortController.signal.aborted
+        ) {
           break
         }
 

@@ -13,11 +13,11 @@ const execFileAsync = promisify(execFile)
 
 /**
  * Execute bash commands found in custom command content using !`command` syntax
- * 
+ *
  * This function processes dynamic command execution within custom commands,
  * following the same security model as the main BashTool but with restricted scope.
  * Commands are executed in the current working directory with a timeout.
- * 
+ *
  * @param content - The custom command content to process
  * @returns Promise<string> - Content with bash commands replaced by their output
  */
@@ -64,14 +64,14 @@ async function executeBashCommands(content: string): Promise<string> {
 
 /**
  * Resolve file references using @filepath syntax within custom commands
- * 
+ *
  * This function implements file inclusion for custom commands, similar to how
  * the FileReadTool works but with inline processing. Files are read from the
  * current working directory and formatted as markdown code blocks.
- * 
+ *
  * Security note: Files are read with the same permissions as the main process,
  * following the same security model as other file operations in the system.
- * 
+ *
  * @param content - The custom command content to process
  * @returns Promise<string> - Content with file references replaced by file contents
  */
@@ -116,14 +116,14 @@ async function resolveFileReferences(content: string): Promise<string> {
 
 /**
  * Validate and process allowed-tools specification from frontmatter
- * 
+ *
  * This function handles tool restriction specifications in custom commands.
  * Currently it provides logging and validation structure - full enforcement
  * would require deep integration with the tool permission system.
- * 
+ *
  * Future implementation should connect to src/permissions.ts and the
  * tool execution pipeline to enforce these restrictions.
- * 
+ *
  * @param allowedTools - Array of tool names from frontmatter
  * @returns boolean - Currently always true, future will return actual validation result
  */
@@ -139,7 +139,7 @@ function validateAllowedTools(allowedTools: string[] | undefined): boolean {
 
 /**
  * Frontmatter configuration for custom commands
- * 
+ *
  * This interface defines the YAML frontmatter structure that can be used
  * to configure custom commands. It follows the same pattern as Claude Desktop's
  * custom command system but with additional fields for enhanced functionality.
@@ -165,7 +165,7 @@ export interface CustomCommandFrontmatter {
 
 /**
  * Extended Command interface with scope information
- * 
+ *
  * This extends the base Command interface to include scope metadata
  * for distinguishing between user-level and project-level commands.
  */
@@ -176,7 +176,7 @@ export interface CustomCommandWithScope extends Command {
 
 /**
  * Parsed custom command file representation
- * 
+ *
  * This interface represents a fully parsed custom command file with
  * separated frontmatter and content sections.
  */
@@ -191,15 +191,15 @@ export interface CustomCommandFile {
 
 /**
  * Parse YAML frontmatter from markdown content
- * 
+ *
  * This function extracts and parses YAML frontmatter from markdown files,
  * supporting the same syntax as Jekyll and other static site generators.
  * It handles basic YAML constructs including strings, booleans, and arrays.
- * 
+ *
  * The parser is intentionally simple and focused on the specific needs of
  * custom commands rather than being a full YAML parser. Complex YAML features
  * like nested objects, multi-line strings, and advanced syntax are not supported.
- * 
+ *
  * @param content - Raw markdown content with optional frontmatter
  * @returns Object containing parsed frontmatter and remaining content
  */
@@ -293,14 +293,14 @@ export function parseFrontmatter(content: string): {
 
 /**
  * Scan directory for markdown files using find command
- * 
+ *
  * This function discovers .md files in the specified directory using the
  * system's find command. It's designed as a fallback when ripgrep is not
  * available, providing the same functionality with broader compatibility.
- * 
+ *
  * The function includes timeout and signal handling for robustness,
  * especially important when scanning large directory trees.
- * 
+ *
  * @param args - Legacy parameter for ripgrep compatibility (ignored)
  * @param directory - Directory to scan for markdown files
  * @param signal - AbortSignal for cancellation support
@@ -332,16 +332,16 @@ async function scanMarkdownFiles(
 
 /**
  * Create a Command object from custom command file data
- * 
+ *
  * This function transforms parsed custom command data into a Command object
  * that integrates with the main command system. It handles naming, scoping,
  * and prompt generation according to the project's command patterns.
- * 
+ *
  * Command naming follows a hierarchical structure:
  * - Project commands: "project:namespace:command"
  * - User commands: "user:namespace:command"
  * - Namespace is derived from directory structure
- * 
+ *
  * @param frontmatter - Parsed frontmatter configuration
  * @param content - Markdown content of the command
  * @param filePath - Absolute path to the command file
@@ -362,14 +362,17 @@ function createCustomCommand(
   // Determine scope based on directory location
   // This follows the same pattern as Claude Desktop's command system
   const userCommandsDir = join(homedir(), '.claude', 'commands')
-  const scope: 'user' | 'project' = baseDir === userCommandsDir ? 'user' : 'project'
+  const scope: 'user' | 'project' =
+    baseDir === userCommandsDir ? 'user' : 'project'
   const prefix = scope === 'user' ? 'user' : 'project'
 
   // Create proper command name with prefix and namespace
   let finalName: string
   if (frontmatter.name) {
     // If frontmatter specifies name, use it but ensure proper prefix
-    finalName = frontmatter.name.startsWith(`${prefix}:`) ? frontmatter.name : `${prefix}:${frontmatter.name}`
+    finalName = frontmatter.name.startsWith(`${prefix}:`)
+      ? frontmatter.name
+      : `${prefix}:${frontmatter.name}`
   } else {
     // Generate name from file path, supporting directory-based namespacing
     if (pathParts.length > 1) {
@@ -385,7 +388,8 @@ function createCustomCommand(
   const enabled = frontmatter.enabled !== false // Default to true
   const hidden = frontmatter.hidden === true // Default to false
   const aliases = frontmatter.aliases || []
-  const progressMessage = frontmatter.progressMessage || `Running ${finalName}...`
+  const progressMessage =
+    frontmatter.progressMessage || `Running ${finalName}...`
   const argNames = frontmatter.argNames
 
   // Validate required fields
@@ -413,7 +417,7 @@ function createCustomCommand(
 
       // Process argument substitution following Claude Code conventions
       // This supports both the official $ARGUMENTS format and legacy {arg} format
-      
+
       // Step 1: Handle $ARGUMENTS placeholder (official Claude Code format)
       if (prompt.includes('$ARGUMENTS')) {
         prompt = prompt.replace(/\$ARGUMENTS/g, args || '')
@@ -439,7 +443,11 @@ function createCustomCommand(
 
       // Step 4: Add tool restrictions if specified
       const allowedTools = frontmatter['allowed-tools']
-      if (allowedTools && Array.isArray(allowedTools) && allowedTools.length > 0) {
+      if (
+        allowedTools &&
+        Array.isArray(allowedTools) &&
+        allowedTools.length > 0
+      ) {
         const allowedToolsStr = allowedTools.join(', ')
         prompt += `\n\nIMPORTANT: You are restricted to using only these tools: ${allowedToolsStr}. Do not use any other tools even if they might be helpful for the task.`
       }
@@ -458,19 +466,19 @@ function createCustomCommand(
 
 /**
  * Load custom commands from .claude/commands/ directories
- * 
+ *
  * This function scans both user-level and project-level command directories
  * for markdown files and processes them into Command objects. It follows the
  * same discovery pattern as Claude Desktop but with additional performance
  * optimizations and error handling.
- * 
+ *
  * Directory structure:
  * - User commands: ~/.claude/commands/
  * - Project commands: {project}/.claude/commands/
- * 
+ *
  * The function is memoized for performance but includes cache invalidation
  * based on directory contents and timestamps.
- * 
+ *
  * @returns Promise<CustomCommandWithScope[]> - Array of loaded and enabled commands
  */
 export const loadCustomCommands = memoize(
@@ -568,12 +576,8 @@ export const loadCustomCommands = memoize(
       logEvent('tengu_custom_commands_loaded', {
         totalCommands: commands.length,
         enabledCommands: enabledCommands.length,
-        userCommands: commands.filter(
-          cmd => cmd.scope === 'user',
-        ).length,
-        projectCommands: commands.filter(
-          cmd => cmd.scope === 'project',
-        ).length,
+        userCommands: commands.filter(cmd => cmd.scope === 'user').length,
+        projectCommands: commands.filter(cmd => cmd.scope === 'project').length,
       })
 
       return enabledCommands
@@ -599,26 +603,28 @@ export const loadCustomCommands = memoize(
 
 /**
  * Clear the custom commands cache to force reload
- * 
+ *
  * This function invalidates the memoized cache for custom commands,
  * forcing the next invocation to re-scan the filesystem. It's useful
  * when commands are added, removed, or modified during runtime.
- * 
+ *
  * This follows the same pattern as other cache invalidation functions
  * in the project, such as getCommands.cache.clear().
  */
 export const reloadCustomCommands = (): void => {
   loadCustomCommands.cache.clear()
-  console.log('Custom commands cache cleared. Commands will be reloaded on next use.')
+  console.log(
+    'Custom commands cache cleared. Commands will be reloaded on next use.',
+  )
 }
 
 /**
  * Get custom command directories for help and diagnostic purposes
- * 
+ *
  * This function returns the standard directory paths where custom commands
  * are expected to be found. It's used by help systems and diagnostic tools
  * to inform users about the proper directory structure.
- * 
+ *
  * @returns Object containing user and project command directory paths
  */
 export function getCustomCommandDirectories(): {
@@ -633,11 +639,11 @@ export function getCustomCommandDirectories(): {
 
 /**
  * Check if custom commands are available in either directory
- * 
+ *
  * This function provides a quick way to determine if custom commands
  * are configured without actually loading them. It's useful for conditional
  * UI elements and feature detection.
- * 
+ *
  * @returns boolean - True if at least one command directory exists
  */
 export function hasCustomCommands(): boolean {

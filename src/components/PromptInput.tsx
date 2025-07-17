@@ -87,7 +87,13 @@ type Props = {
   submitCount: number
   onSubmitCountChange: (updater: (prev: number) => number) => void
   setIsLoading: (isLoading: boolean) => void
-  setCurrentRequest: (request: { id: string; abortController: AbortController; isActive: boolean } | null) => void
+  setCurrentRequest: (
+    request: {
+      id: string
+      abortController: AbortController
+      isActive: boolean
+    } | null,
+  ) => void
   onShowMessageSelector: () => void
   setForkConvoWithMessagesOnTheNextRender: (
     forkConvoWithMessages: Message[],
@@ -347,17 +353,17 @@ function PromptInput({
     // Set loading state and create new request context immediately
     setIsLoading(true)
     const model = await getSlowAndCapableModel()
-    
+
     // Create new request context before processUserInput to ensure local commands can be cancelled
     const newRequest = {
       id: crypto.randomUUID(),
       abortController: new AbortController(),
       isActive: true,
     }
-    
+
     // Set the current request immediately so useCancelRequest can access it
     setCurrentRequest(newRequest)
-    
+
     const messages = await processUserInput(
       finalInput,
       mode,

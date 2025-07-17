@@ -13,11 +13,11 @@ import { MACRO } from '../constants/macros'
 
 /**
  * Help Component - Interactive help system with progressive disclosure
- * 
+ *
  * This component provides a comprehensive help interface that progressively
  * reveals information to avoid overwhelming users. It categorizes commands
  * into built-in and custom types, providing clear guidance on usage.
- * 
+ *
  * The progressive disclosure pattern (count-based) ensures users can absorb
  * information at their own pace while maintaining a responsive interface.
  */
@@ -33,13 +33,13 @@ export function Help({
 
   // Filter out hidden commands from the help display
   const filteredCommands = commands.filter(cmd => !cmd.isHidden)
-  
+
   // Separate built-in commands from custom commands
   // Built-in commands are those that don't follow the custom command patterns
   const builtInCommands = filteredCommands.filter(
     cmd => !cmd.name.startsWith('project:') && !cmd.name.startsWith('user:'),
   )
-  
+
   // Custom commands are those with project: or user: prefixes
   const customCommands = filteredCommands.filter(
     cmd => cmd.name.startsWith('project:') || cmd.name.startsWith('user:'),
@@ -160,10 +160,7 @@ export function Help({
                     )}
                     {/* Show scope indicator for debugging */}
                     {cmd.scope && (
-                      <Text color={theme.secondaryText}>
-                        {' '}
-                        [{cmd.scope}]
-                      </Text>
+                      <Text color={theme.secondaryText}> [{cmd.scope}]</Text>
                     )}
                   </Box>
                 ))}
