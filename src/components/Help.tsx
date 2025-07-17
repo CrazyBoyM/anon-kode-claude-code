@@ -1,5 +1,10 @@
 import { Command } from '../commands'
 import { PRODUCT_COMMAND, PRODUCT_NAME } from '../constants/product'
+import {
+  getCustomCommandDirectories,
+  hasCustomCommands,
+  type CustomCommandWithScope,
+} from '../services/customCommands'
 import * as React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../utils/theme'
@@ -16,6 +21,12 @@ export function Help({
   const moreHelp = `Learn more at: ${MACRO.README_URL}`
 
   const filteredCommands = commands.filter(cmd => !cmd.isHidden)
+  const builtInCommands = filteredCommands.filter(
+    cmd => !cmd.type || cmd.type !== 'prompt' || !cmd.name.includes('.md'),
+  )
+  const customCommands = filteredCommands.filter(
+    cmd => cmd.type === 'prompt' && !builtInCommands.includes(cmd),
+  ) as CustomCommandWithScope[]
   const [count, setCount] = React.useState(0)
 
   React.useEffect(() => {
@@ -98,16 +109,65 @@ export function Help({
 
       {count >= 3 && (
         <Box marginTop={1} flexDirection="column">
-          <Text bold>Interactive Mode Commands:</Text>
+          <Text bold>Built-in Commands:</Text>
 
           <Box flexDirection="column">
-            {filteredCommands.map((cmd, i) => (
+            {builtInCommands.map((cmd, i) => (
               <Box key={i} marginLeft={1}>
                 <Text bold>{`/${cmd.name}`}</Text>
                 <Text> - {cmd.description}</Text>
               </Box>
             ))}
           </Box>
+
+          {customCommands.length > 0 && (
+            <>
+              <Box marginTop={1}>
+                <Text bold>Custom Commands:</Text>
+              </Box>
+
+              <Box flexDirection="column">
+                {customCommands.map((cmd, i) => (
+                  <Box key={i} marginLeft={1}>
+                    <Text bold color={theme.claude}>{`/${cmd.name}`}</Text>
+                    <Text> - {cmd.description}</Text>
+                    {cmd.aliases && cmd.aliases.length > 0 && (
+                      <Text color={theme.secondaryText}>
+                        {' '}
+                        (aliases: {cmd.aliases.join(', ')})
+                      </Text>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            </>
+          )}
+
+          {hasCustomCommands() || customCommands.length > 0 ? (
+            <Box marginTop={1}>
+              <Text color={theme.secondaryText}>
+                Custom commands loaded from:
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().user} (user: prefix)
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().project} (project: prefix)
+              </Text>
+            </Box>
+          ) : (
+            <Box marginTop={1}>
+              <Text color={theme.secondaryText}>
+                Create custom commands by adding .md files to:
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().user} (user: prefix)
+              </Text>
+              <Text color={theme.secondaryText}>
+                • {getCustomCommandDirectories().project} (project: prefix)
+              </Text>
+            </Box>
+          )}
         </Box>
       )}
 
