@@ -5,6 +5,8 @@ import { getCodeStyle } from '../utils/style'
 import { clearTerminal } from '../utils/terminal'
 import { getOriginalCwd, setCwd } from '../utils/state'
 import { Message } from '../query'
+import { resetReminderSession } from '../services/systemReminder'
+import { resetFileFreshnessSession } from '../services/fileFreshness'
 
 export async function clearConversation(context: {
   setForkConvoWithMessagesOnTheNextRender: (
@@ -17,6 +19,10 @@ export async function clearConversation(context: {
   getContext.cache.clear?.()
   getCodeStyle.cache.clear?.()
   await setCwd(getOriginalCwd())
+
+  // Reset reminder and file freshness sessions to clean up state
+  resetReminderSession()
+  resetFileFreshnessSession()
 }
 
 const clear = {

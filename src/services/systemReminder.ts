@@ -224,6 +224,36 @@ class SystemReminderService {
     return null
   }
 
+  /**
+   * Generate reminders for external file changes
+   * Called when todo files are modified externally
+   */
+  public generateFileChangeReminder(context: any): ReminderMessage | null {
+    const { agentId, filePath, reminder } = context
+
+    if (!reminder) {
+      return null
+    }
+
+    const currentTime = Date.now()
+    const reminderKey = `file_changed_${agentId}_${filePath}_${currentTime}`
+
+    // Ensure this specific file change reminder is only shown once
+    if (this.sessionState.remindersSent.has(reminderKey)) {
+      return null
+    }
+
+    this.sessionState.remindersSent.add(reminderKey)
+
+    return this.createReminderMessage(
+      'file_changed',
+      'general',
+      'medium',
+      reminder,
+      currentTime,
+    )
+  }
+
   private createReminderMessage(
     type: string,
     category: ReminderMessage['category'],
@@ -259,10 +289,49 @@ class SystemReminderService {
   }
 
   private setupEventDispatcher(): void {
+    // Session startup events
+    this.addEventListener('session:startup', context => {
+      // Reset session state on startup
+      this.resetSession()
+
+      // Initialize session tracking
+      this.sessionState.sessionStartTime = Date.now()
+      this.sessionState.contextPresent =
+        Object.keys(context.context || {}).length > 0
+
+      // Log session startup
+      logEvent('system_reminder_session_startup', {
+        agentId: context.agentId || 'default',
+        contextKeys: Object.keys(context.context || {}),
+        messageCount: context.messages || 0,
+        timestamp: context.timestamp,
+      })
+    })
+
     // Todo change events
     this.addEventListener('todo:changed', context => {
       this.sessionState.lastTodoUpdate = Date.now()
       this.clearTodoReminders(context.agentId)
+    })
+
+    // Todo file changed externally
+    this.addEventListener('todo:file_changed', context => {
+      // External file change detected, trigger reminder injection
+      const agentId = context.agentId || 'default'
+      this.clearTodoReminders(agentId)
+      this.sessionState.lastTodoUpdate = Date.now()
+
+      // Generate and inject file change reminder immediately
+      const reminder = this.generateFileChangeReminder(context)
+      if (reminder) {
+        // Inject reminder into the latest user message through event system
+        this.emitEvent('reminder:inject', {
+          reminder: reminder.content,
+          agentId,
+          type: 'file_changed',
+          timestamp: Date.now(),
+        })
+      }
     })
 
     // File access events
@@ -325,6 +394,9 @@ export const generateSystemReminders = (
   hasContext: boolean = false,
   agentId?: string,
 ) => systemReminderService.generateReminders(hasContext, agentId)
+
+export const generateFileChangeReminder = (context: any) =>
+  systemReminderService.generateFileChangeReminder(context)
 
 export const emitReminderEvent = (event: string, context: any) =>
   systemReminderService.emitEvent(event, context)

@@ -26,6 +26,7 @@ import { hasWritePermission } from '../../utils/permissions/filesystem'
 import { getPatch } from '../../utils/diff'
 import { PROJECT_FILE } from '../../constants/product'
 import { emitReminderEvent } from '../../services/systemReminder'
+import { recordFileEdit } from '../../services/fileFreshness'
 
 const MAX_LINES_TO_RENDER = 5
 const MAX_LINES_TO_RENDER_FOR_ASSISTANT = 16000
@@ -212,6 +213,9 @@ export const FileWriteTool = {
 
     mkdirSync(dir, { recursive: true })
     writeTextContent(fullFilePath, content, enc, endings!)
+
+    // Record Agent edit operation for file freshness tracking
+    recordFileEdit(fullFilePath, content)
 
     // Update read timestamp, to invalidate stale writes
     readFileTimestamps[fullFilePath] = statSync(fullFilePath).mtimeMs

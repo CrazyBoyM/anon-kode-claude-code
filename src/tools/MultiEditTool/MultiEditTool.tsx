@@ -24,6 +24,7 @@ import { hasWritePermission } from '../../utils/permissions/filesystem'
 import { PROJECT_FILE } from '../../constants/product'
 import { DESCRIPTION, PROMPT } from './prompt'
 import { emitReminderEvent } from '../../services/systemReminder'
+import { recordFileEdit } from '../../services/fileFreshness'
 
 const EditSchema = z.object({
   old_string: z.string().describe('The text to replace'),
@@ -303,6 +304,9 @@ export const MultiEditTool = {
       // Write the modified content
       const lineEndings = fileExists ? detectLineEndings(currentContent) : '\n'
       writeTextContent(filePath, modifiedContent, lineEndings)
+
+      // Record Agent edit operation for file freshness tracking
+      recordFileEdit(filePath, modifiedContent)
 
       // Update readFileTimestamps to prevent stale file warnings
       readFileTimestamps[filePath] = Date.now()

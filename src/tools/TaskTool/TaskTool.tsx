@@ -29,7 +29,7 @@ import { getSlowAndCapableModel } from '../../utils/model'
 import { getMaxThinkingTokens } from '../../utils/thinking'
 import { getTheme } from '../../utils/theme'
 import { generateAgentId } from '../../utils/agentStorage'
-import { getAgentTools, getPrompt } from './prompt'
+import { getTaskTools, getPrompt } from './prompt'
 import { TOOL_NAME } from './constants'
 
 const inputSchema = z.object({
@@ -39,13 +39,13 @@ const inputSchema = z.object({
   prompt: z.string().describe('The task for the agent to perform'),
 })
 
-export const AgentTool = {
+export const TaskTool = {
   async prompt({ dangerouslySkipPermissions }) {
     return await getPrompt(dangerouslySkipPermissions)
   },
   name: TOOL_NAME,
   async description() {
-    return 'Launch a new agent for intelligent search and analysis tasks'
+    return "Launch a new agent that has access to a set of tools you can use to answer the user's question."
   },
   inputSchema,
   async *call(
@@ -63,7 +63,7 @@ export const AgentTool = {
   ) {
     const startTime = Date.now()
     const messages: MessageType[] = [createUserMessage(prompt)]
-    const tools = await getAgentTools(dangerouslySkipPermissions)
+    const tools = await getTaskTools(dangerouslySkipPermissions)
 
     // We yield an initial message immediately so the UI
     // doesn't move around when messages start streaming back.
@@ -74,7 +74,7 @@ export const AgentTool = {
       tools,
     }
 
-    const [agentPrompt, context, slowAndCapableModel, maxThinkingTokens] =
+    const [taskPrompt, context, slowAndCapableModel, maxThinkingTokens] =
       await Promise.all([
         getAgentPrompt(),
         getContext(),
@@ -87,12 +87,12 @@ export const AgentTool = {
       getNextAvailableLogSidechainNumber(messageLogName, forkNumber),
     )
 
-    // Generate unique Agent ID for this agent execution
-    const agentId = generateAgentId()
+    // Generate unique Task ID for this task execution
+    const taskId = generateAgentId()
 
     for await (const message of query(
       messages,
-      agentPrompt,
+      taskPrompt,
       context,
       hasPermissionsToUseTool,
       {
@@ -108,7 +108,7 @@ export const AgentTool = {
           maxThinkingTokens,
         },
         messageId: getLastAssistantMessageId(messages),
-        agentId, // Pass the generated Agent ID
+        agentId: taskId, // Pass the generated Task ID
         readFileTimestamps,
       },
     )) {
@@ -116,7 +116,7 @@ export const AgentTool = {
 
       overwriteLog(
         // IMPORTANT: Compute sidechain number here, not earlier, to avoid a race condition
-        // where concurrent Agents reserve the same sidechain number.
+        // where concurrent Tasks reserve the same sidechain number.
         getMessagesPath(messageLogName, forkNumber, getSidechainNumber()),
         messages.filter(_ => _.type !== 'progress'),
       )
@@ -182,7 +182,7 @@ export const AgentTool = {
       }
     }
 
-    // Output is an AssistantMessage, but since AgentTool is a tool, it needs
+    // Output is an AssistantMessage, but since TaskTool is a tool, it needs
     // to serialize its response to UserMessage-compatible content.
     const data = lastMessage.message.content.filter(_ => _.type === 'text')
     yield {

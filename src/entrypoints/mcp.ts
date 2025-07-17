@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { AgentTool } from '../tools/AgentTool/AgentTool'
+import { TaskTool } from '../tools/TaskTool/TaskTool'
 import { hasPermissionsToUseTool } from '../permissions'
 import { setCwd } from '../utils/state'
 import { getSlowAndCapableModel } from '../utils/model'
@@ -37,7 +37,7 @@ const state: {
 const MCP_COMMANDS: Command[] = [review]
 
 const MCP_TOOLS: Tool[] = [
-  AgentTool,
+  TaskTool,
   BashTool,
   FileEditTool,
   FileReadTool,

@@ -778,34 +778,45 @@ export function formatSystemPromptWithContext(
   systemPrompt: string[],
   context: { [k: string]: string },
   agentId?: string,
-): string[] {
+): { systemPrompt: string[]; reminders: string } {
   // Build the enhanced system prompt
   const enhancedPrompt = [...systemPrompt]
+  let reminders = ''
 
   // Only inject reminders when context is present (matching original behavior)
   const hasContext = Object.entries(context).length > 0
 
   if (hasContext) {
-    // Generate system reminders conditionally with agent context
-    const reminders = generateSystemReminders(true, agentId)
+    // Generate reminders but return them separately instead of injecting into system prompt
+    const reminderMessages = generateSystemReminders(true, agentId)
 
-    // Add system reminders as separate system messages
-    reminders.forEach(reminder => {
-      enhancedPrompt.push(reminder.content)
-    })
+    // CLAUDE.md context as reminder (aligning with target system behavior - 58.8% of reminders)
+    if (context.projectDocs) {
+      reminders += `<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# claudeMd\n${context.projectDocs}\n</system-reminder>\n`
+    }
 
-    // Add context with exact original format
+    // Other dynamic reminders (todo, security, performance)
+    if (reminderMessages.length > 0) {
+      reminders += reminderMessages.map(r => r.content).join('\n') + '\n'
+    }
+
+    // Add context to system prompt (excluding projectDocs since it's handled as reminder)
     enhancedPrompt.push(
       `\nAs you answer the user's questions, you can use the following context:\n`,
     )
+
+    const filteredContext = Object.fromEntries(
+      Object.entries(context).filter(([key]) => key !== 'projectDocs'),
+    )
+
     enhancedPrompt.push(
-      ...Object.entries(context).map(
+      ...Object.entries(filteredContext).map(
         ([key, value]) => `<context name="${key}">${value}</context>`,
       ),
     )
   }
 
-  return enhancedPrompt
+  return { systemPrompt: enhancedPrompt, reminders }
 }
 
 async function querySonnetWithPromptCaching(

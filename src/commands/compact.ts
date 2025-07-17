@@ -8,6 +8,8 @@ import {
 } from '../utils/messages.js'
 import { getCodeStyle } from '../utils/style'
 import { clearTerminal } from '../utils/terminal'
+import { resetReminderSession } from '../services/systemReminder'
+import { resetFileFreshnessSession } from '../services/fileFreshness'
 
 const compact = {
   type: 'local',
@@ -83,6 +85,10 @@ const compact = {
     ])
     getContext.cache.clear?.()
     getCodeStyle.cache.clear?.()
+
+    // Reset reminder and file freshness sessions to clean up state
+    resetReminderSession()
+    resetFileFreshnessSession()
 
     return '' // not used, just for typesafety. TODO: avoid this hack
   },

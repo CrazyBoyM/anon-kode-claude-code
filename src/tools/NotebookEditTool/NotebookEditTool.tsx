@@ -17,6 +17,7 @@ import { getCwd } from '../../utils/state'
 import { DESCRIPTION, PROMPT } from './prompt'
 import { hasWritePermission } from '../../utils/permissions/filesystem'
 import { emitReminderEvent } from '../../services/systemReminder'
+import { recordFileEdit } from '../../services/fileFreshness'
 
 const inputSchema = z.strictObject({
   notebook_path: z
@@ -223,12 +224,11 @@ export const NotebookEditTool = {
       }
       // Write back to file
       const endings = detectLineEndings(fullPath)
-      writeTextContent(
-        fullPath,
-        JSON.stringify(notebook, null, 1),
-        enc,
-        endings!,
-      )
+      const updatedNotebook = JSON.stringify(notebook, null, 1)
+      writeTextContent(fullPath, updatedNotebook, enc, endings!)
+
+      // Record Agent edit operation for file freshness tracking
+      recordFileEdit(fullPath, updatedNotebook)
 
       // Emit file edited event for system reminders
       emitReminderEvent('file:edited', {

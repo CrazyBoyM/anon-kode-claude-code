@@ -7,6 +7,7 @@ import { FallbackToolUseRejectedMessage } from '../../components/FallbackToolUse
 import { Tool } from '../../Tool'
 import { MEMORY_DIR } from '../../utils/env'
 import { resolveAgentId } from '../../utils/agentStorage'
+import { recordFileEdit } from '../../services/fileFreshness'
 import { DESCRIPTION, PROMPT } from './prompt'
 
 const inputSchema = z.strictObject({
@@ -75,6 +76,10 @@ export const MemoryWriteTool = {
     const fullPath = join(agentMemoryDir, file_path)
     mkdirSync(dirname(fullPath), { recursive: true })
     writeFileSync(fullPath, content, 'utf-8')
+
+    // Record Agent edit operation for file freshness tracking
+    recordFileEdit(fullPath, content)
+
     yield {
       type: 'result',
       data: 'Saved',

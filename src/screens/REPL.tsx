@@ -517,7 +517,7 @@ export function REPL({
         const message =
           _.type === 'progress' ? (
             _.content.message.content[0]?.type === 'text' &&
-            // Hack: AgentTool interrupts use Progress messages, so don't
+            // Hack: TaskTool interrupts use Progress messages, so don't
             // need an extra ⎿ because <Message /> already adds one.
             // TODO: Find a cleaner way to do this.
             _.content.message.content[0].text === INTERRUPT_MESSAGE ? (

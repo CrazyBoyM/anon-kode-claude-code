@@ -1,17 +1,24 @@
-import { statSync, existsSync } from 'fs'
-import { emitReminderEvent } from '../services/systemReminder'
+import { statSync, existsSync, watchFile, unwatchFile } from 'fs'
+import {
+  emitReminderEvent,
+  systemReminderService,
+} from '../services/systemReminder'
+import { getAgentFilePath } from '../utils/agentStorage'
+import { logEvent } from '../services/statsig'
 
 interface FileTimestamp {
   path: string
   lastRead: number
   lastModified: number
   size: number
+  lastAgentEdit?: number // Track when Agent last edited this file
 }
 
 interface FileFreshnessState {
   readTimestamps: Map<string, FileTimestamp>
   editConflicts: Set<string>
   sessionFiles: Set<string>
+  watchedTodoFiles: Map<string, string> // agentId -> filePath
 }
 
 class FileFreshnessService {
@@ -19,6 +26,31 @@ class FileFreshnessService {
     readTimestamps: new Map(),
     editConflicts: new Set(),
     sessionFiles: new Set(),
+    watchedTodoFiles: new Map(),
+  }
+
+  constructor() {
+    this.setupEventListeners()
+  }
+
+  /**
+   * Setup event listeners for session management
+   */
+  private setupEventListeners(): void {
+    // Listen for session startup events through the SystemReminderService
+    systemReminderService.addEventListener(
+      'session:startup',
+      (context: any) => {
+        // Reset session state on startup
+        this.resetSession()
+
+        // Log session startup
+        logEvent('file_freshness_session_startup', {
+          agentId: context.agentId || 'default',
+          timestamp: context.timestamp,
+        })
+      },
+    )
   }
 
   /**
@@ -103,10 +135,12 @@ class FileFreshnessService {
   }
 
   /**
-   * Record file edit operation
+   * Record file edit operation by Agent
    */
   public recordFileEdit(filePath: string, content?: string): void {
     try {
+      const now = Date.now()
+
       // Update recorded timestamp after edit
       if (existsSync(filePath)) {
         const stats = statSync(filePath)
@@ -115,7 +149,18 @@ class FileFreshnessService {
         if (existing) {
           existing.lastModified = stats.mtimeMs
           existing.size = stats.size
+          existing.lastAgentEdit = now // Mark this as Agent-initiated edit
           this.state.readTimestamps.set(filePath, existing)
+        } else {
+          // Create new record for Agent-edited file
+          const timestamp: FileTimestamp = {
+            path: filePath,
+            lastRead: now,
+            lastModified: stats.mtimeMs,
+            size: stats.size,
+            lastAgentEdit: now,
+          }
+          this.state.readTimestamps.set(filePath, timestamp)
         }
       }
 
@@ -125,8 +170,9 @@ class FileFreshnessService {
       // Emit file edit event
       emitReminderEvent('file:edited', {
         filePath,
-        timestamp: Date.now(),
+        timestamp: now,
         contentLength: content?.length || 0,
+        source: 'agent',
       })
     } catch (error) {
       console.error(`Error recording file edit for ${filePath}:`, error)
@@ -134,13 +180,42 @@ class FileFreshnessService {
   }
 
   public generateFileModificationReminder(filePath: string): string | null {
-    const freshnessCheck = this.checkFileFreshness(filePath)
+    const recorded = this.state.readTimestamps.get(filePath)
 
-    if (freshnessCheck.conflict) {
-      return `Note: ${filePath} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to).`
+    if (!recorded) {
+      return null
     }
 
-    return null
+    try {
+      if (!existsSync(filePath)) {
+        return `Note: ${filePath} was deleted since last read.`
+      }
+
+      const currentStats = statSync(filePath)
+      const isModified = currentStats.mtimeMs > recorded.lastModified
+
+      if (!isModified) {
+        return null
+      }
+
+      // Check if this was an Agent-initiated change
+      // Use small time tolerance to handle filesystem timestamp precision issues
+      const TIME_TOLERANCE_MS = 100
+      if (
+        recorded.lastAgentEdit &&
+        recorded.lastAgentEdit >= recorded.lastModified - TIME_TOLERANCE_MS
+      ) {
+        // Agent modified this file recently, no reminder needed
+        // (context already contains before/after content)
+        return null
+      }
+
+      // External modification detected - generate reminder
+      return `Note: ${filePath} was modified externally since last read. The file may have changed outside of this session.`
+    } catch (error) {
+      console.error(`Error checking modification for ${filePath}:`, error)
+      return null
+    }
   }
 
   public getConflictedFiles(): string[] {
@@ -152,10 +227,81 @@ class FileFreshnessService {
   }
 
   public resetSession(): void {
+    // Clean up existing todo file watchers
+    this.state.watchedTodoFiles.forEach(filePath => {
+      try {
+        unwatchFile(filePath)
+      } catch (error) {
+        console.error(`Error unwatching file ${filePath}:`, error)
+      }
+    })
+
     this.state = {
       readTimestamps: new Map(),
       editConflicts: new Set(),
       sessionFiles: new Set(),
+      watchedTodoFiles: new Map(),
+    }
+  }
+
+  /**
+   * Start watching todo file for an agent
+   */
+  public startWatchingTodoFile(agentId: string): void {
+    try {
+      const filePath = getAgentFilePath(agentId)
+
+      // Don't watch if already watching
+      if (this.state.watchedTodoFiles.has(agentId)) {
+        return
+      }
+
+      this.state.watchedTodoFiles.set(agentId, filePath)
+
+      // Record initial state if file exists
+      if (existsSync(filePath)) {
+        this.recordFileRead(filePath)
+      }
+
+      // Start watching for changes
+      watchFile(filePath, { interval: 1000 }, (curr, prev) => {
+        // Check if this was an external modification
+        const reminder = this.generateFileModificationReminder(filePath)
+        if (reminder) {
+          // File was modified externally, emit todo change reminder
+          emitReminderEvent('todo:file_changed', {
+            agentId,
+            filePath,
+            reminder,
+            timestamp: Date.now(),
+            currentStats: { mtime: curr.mtime, size: curr.size },
+            previousStats: { mtime: prev.mtime, size: prev.size },
+          })
+        }
+      })
+    } catch (error) {
+      console.error(
+        `Error starting todo file watch for agent ${agentId}:`,
+        error,
+      )
+    }
+  }
+
+  /**
+   * Stop watching todo file for an agent
+   */
+  public stopWatchingTodoFile(agentId: string): void {
+    try {
+      const filePath = this.state.watchedTodoFiles.get(agentId)
+      if (filePath) {
+        unwatchFile(filePath)
+        this.state.watchedTodoFiles.delete(agentId)
+      }
+    } catch (error) {
+      console.error(
+        `Error stopping todo file watch for agent ${agentId}:`,
+        error,
+      )
     }
   }
 
@@ -180,3 +326,7 @@ export const generateFileModificationReminder = (filePath: string) =>
   fileFreshnessService.generateFileModificationReminder(filePath)
 export const resetFileFreshnessSession = () =>
   fileFreshnessService.resetSession()
+export const startWatchingTodoFile = (agentId: string) =>
+  fileFreshnessService.startWatchingTodoFile(agentId)
+export const stopWatchingTodoFile = (agentId: string) =>
+  fileFreshnessService.stopWatchingTodoFile(agentId)

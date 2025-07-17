@@ -1,5 +1,5 @@
 import { Tool } from './Tool'
-import { AgentTool } from './tools/AgentTool/AgentTool'
+import { TaskTool } from './tools/TaskTool/TaskTool'
 import { ArchitectTool } from './tools/ArchitectTool/ArchitectTool'
 import { BashTool } from './tools/BashTool/BashTool'
 import { FileEditTool } from './tools/FileEditTool/FileEditTool'
@@ -14,7 +14,6 @@ import { MultiEditTool } from './tools/MultiEditTool/MultiEditTool'
 import { NotebookEditTool } from './tools/NotebookEditTool/NotebookEditTool'
 import { NotebookReadTool } from './tools/NotebookReadTool/NotebookReadTool'
 import { ThinkTool } from './tools/ThinkTool/ThinkTool'
-import { TodoReadTool } from './tools/TodoReadTool/TodoReadTool'
 import { TodoWriteTool } from './tools/TodoWriteTool/TodoWriteTool'
 import { getMCPTools } from './services/mcpClient'
 import { memoize } from 'lodash-es'
@@ -24,7 +23,7 @@ const ANT_ONLY_TOOLS = [MemoryReadTool, MemoryWriteTool]
 // Function to avoid circular dependencies that break bun
 export const getAllTools = (): Tool[] => {
   return [
-    AgentTool,
+    TaskTool,
     BashTool,
     GlobTool,
     GrepTool,
@@ -36,7 +35,6 @@ export const getAllTools = (): Tool[] => {
     NotebookReadTool,
     NotebookEditTool,
     ThinkTool,
-    TodoReadTool,
     TodoWriteTool,
     ...ANT_ONLY_TOOLS,
   ]

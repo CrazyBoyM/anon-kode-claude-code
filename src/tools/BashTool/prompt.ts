@@ -1,5 +1,5 @@
 import { PRODUCT_NAME, PRODUCT_URL } from '../../constants/product'
-import { TOOL_NAME as AGENT_TOOL_NAME } from '../AgentTool/constants'
+import { TOOL_NAME as TASK_TOOL_NAME } from '../TaskTool/constants'
 import { FileReadTool } from '../FileReadTool/FileReadTool'
 import { TOOL_NAME_FOR_PROMPT as GLOB_TOOL_NAME } from '../GlobTool/prompt'
 import { TOOL_NAME_FOR_PROMPT as GREP_TOOL_NAME } from '../GrepTool/prompt'
@@ -54,7 +54,7 @@ Before executing the command, please follow these steps:
 Usage notes:
   - The command argument is required.
   - You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 30 minutes.
-  - VERY IMPORTANT: You MUST avoid using search commands like \`find\` and \`grep\`. Instead use ${GREP_TOOL_NAME}, ${GLOB_TOOL_NAME}, or ${AGENT_TOOL_NAME} to search. You MUST avoid read tools like \`cat\`, \`head\`, \`tail\`, and \`ls\`, and use ${FileReadTool.name} and ${LSTool.name} to read files.
+  - VERY IMPORTANT: You MUST avoid using search commands like \`find\` and \`grep\`. Instead use ${GREP_TOOL_NAME}, ${GLOB_TOOL_NAME}, or ${TASK_TOOL_NAME} to search. You MUST avoid read tools like \`cat\`, \`head\`, \`tail\`, and \`ls\`, and use ${FileReadTool.name} and ${LSTool.name} to read files.
   - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
   - IMPORTANT: All commands share the same shell session. Shell state (environment variables, virtual environments, current directory, etc.) persist between commands. For example, if you set an environment variable as part of a command, the environment variable will persist for subsequent commands.
   - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of \`cd\`. You may use \`cd\` if the User explicitly requests it.

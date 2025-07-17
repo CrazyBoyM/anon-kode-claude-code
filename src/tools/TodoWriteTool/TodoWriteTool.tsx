@@ -6,6 +6,7 @@ import { TodoItem as TodoItemComponent } from '../../components/TodoItem'
 import { Tool, ValidationResult } from '../../Tool'
 import { setTodos, getTodos, TodoItem } from '../../utils/todoStorage'
 import { emitReminderEvent } from '../../services/systemReminder'
+import { startWatchingTodoFile } from '../../services/fileFreshness'
 import { DESCRIPTION, PROMPT } from './prompt'
 import { getTheme } from '../../utils/theme'
 
@@ -214,6 +215,11 @@ export const TodoWriteTool = {
     try {
       // Get agent ID from context
       const agentId = context?.agentId
+
+      // Start watching todo file for this agent if not already watching
+      if (agentId) {
+        startWatchingTodoFile(agentId)
+      }
 
       // Store previous todos for comparison (agent-scoped)
       const previousTodos = getTodos(agentId)

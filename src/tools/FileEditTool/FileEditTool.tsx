@@ -20,6 +20,7 @@ import { logError } from '../../utils/log'
 import { getCwd } from '../../utils/state'
 import { getTheme } from '../../utils/theme'
 import { emitReminderEvent } from '../../services/systemReminder'
+import { recordFileEdit } from '../../services/fileFreshness'
 import { NotebookEditTool } from '../NotebookEditTool/NotebookEditTool'
 import { DESCRIPTION } from './prompt'
 import { applyEdit } from './utils'
@@ -238,6 +239,9 @@ export const FileEditTool = {
       ? readFileSync(fullFilePath, enc)
       : ''
     writeTextContent(fullFilePath, updatedFile, enc, endings)
+
+    // Record Agent edit operation for file freshness tracking
+    recordFileEdit(fullFilePath, updatedFile)
 
     // Update read timestamp, to invalidate stale writes
     readFileTimestamps[fullFilePath] = statSync(fullFilePath).mtimeMs

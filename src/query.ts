@@ -14,6 +14,7 @@ import {
   formatSystemPromptWithContext,
   querySonnet,
 } from './services/claude.js'
+import { emitReminderEvent } from './services/systemReminder'
 import { logEvent } from './services/statsig'
 import { all } from './utils/generators'
 import { logError } from './utils/log'
@@ -156,11 +157,42 @@ export async function* query(
     m2: AssistantMessage,
   ) => Promise<BinaryFeedbackResult>,
 ): AsyncGenerator<Message, void> {
-  const fullSystemPrompt = formatSystemPromptWithContext(
-    systemPrompt,
+  const { systemPrompt: fullSystemPrompt, reminders } =
+    formatSystemPromptWithContext(systemPrompt, context, toolUseContext.agentId)
+
+  // Emit session startup event to notify all reminder services
+  emitReminderEvent('session:startup', {
+    agentId: toolUseContext.agentId,
     context,
-    toolUseContext.agentId,
-  )
+    messages: messages.length,
+    timestamp: Date.now(),
+  })
+
+  // Inject reminders into the latest user message (aligning with Claude Code 1.0.51 behavior)
+  if (reminders && messages.length > 0) {
+    // Find the last user message
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.type === 'user') {
+        const lastUserMessage = messages[i]
+        messages[i] = {
+          ...lastUserMessage,
+          message: {
+            ...lastUserMessage.message,
+            content:
+              typeof lastUserMessage.message.content === 'string'
+                ? reminders + lastUserMessage.message.content
+                : [
+                    { type: 'text', text: reminders },
+                    ...(Array.isArray(lastUserMessage.message.content)
+                      ? lastUserMessage.message.content
+                      : []),
+                  ],
+          },
+        }
+        break
+      }
+    }
+  }
   function getAssistantResponse() {
     return querySonnet(
       normalizeMessagesForAPI(messages),
