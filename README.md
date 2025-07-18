@@ -2,6 +2,8 @@
 
 Terminal-based AI coding assistant that provides Claude-like functionality through any OpenAI-compatible API.
 
+*Complete project history preserved from lastkode repository*
+
 ![Any Kode Demo](https://github.com/user-attachments/assets/7a9253a7-8bb0-40d5-a3f3-5e6096d7c789)
 
 ## Features
